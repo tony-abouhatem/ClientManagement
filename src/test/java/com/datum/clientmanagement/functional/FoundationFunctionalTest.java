@@ -63,6 +63,7 @@ class FoundationFunctionalTest {
     @ActiveProfiles("test")
     @Import(TestcontainersConfiguration.class)
     @Testcontainers(disabledWithoutDocker = true)
+    @SuppressWarnings({"SqlResolve", "SqlNoDataSourceInspection"}) // IDE has no database; the SQL runs against Testcontainers Postgres
     class RunningApplication {
 
         @Autowired
@@ -188,7 +189,7 @@ class FoundationFunctionalTest {
     @Test
     @DisplayName("should define the five services with healthchecks and healthy-dependency ordering when docker-compose.yml is read")
     void ac2_dockerCompose_definesServicesHealthchecksAndDependsOn() throws IOException {
-        Map<String, Object> services = childMap(readYaml(COMPOSE_FILE), "services");
+        Map<String, Object> services = childMap(readComposeFile(), "services");
 
         assertThat(services).containsKeys("app", "postgres", "rabbitmq", "keycloak", "wiremock");
         for (String dependency : DEPENDENCY_SERVICES) {
@@ -233,8 +234,8 @@ class FoundationFunctionalTest {
                 });
     }
 
-    private static Map<String, Object> readYaml(Path file) throws IOException {
-        try (Reader reader = Files.newBufferedReader(file)) {
+    private static Map<String, Object> readComposeFile() throws IOException {
+        try (Reader reader = Files.newBufferedReader(COMPOSE_FILE)) {
             return new Yaml().load(reader);
         }
     }

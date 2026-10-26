@@ -9,6 +9,7 @@ import org.springframework.security.access.AccessDeniedException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ProblemDetailAccessDeniedHandlerTest {
@@ -26,7 +27,7 @@ class ProblemDetailAccessDeniedHandlerTest {
 
         assertThat(response.getStatus()).isEqualTo(403);
         assertThat(response.getHeader(HttpHeaders.WWW_AUTHENTICATE)).startsWith("Bearer");
-        assertThat(MediaType.parseMediaType(response.getContentType())).isEqualTo(MediaType.APPLICATION_PROBLEM_JSON);
+        assertThat(MediaType.parseMediaType(requireNonNull(response.getContentType()))).isEqualTo(MediaType.APPLICATION_PROBLEM_JSON);
         JsonNode body = JsonMapper.builder().build().readTree(response.getContentAsString());
         assertThat(body.path("title").asString()).isEqualTo("Forbidden");
         assertThat(body.path("status").asInt()).isEqualTo(403);

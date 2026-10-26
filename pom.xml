@@ -32,6 +32,10 @@
         <springdoc.version>3.2.0</springdoc.version>
         <wiremock.version>3.13.2</wiremock.version>
         <jacoco.version>0.8.16</jacoco.version>
+        <!-- Newer patch releases than Spring Boot 4.1.2 manages, picked up for CVE fixes. Drop when Boot catches up. -->
+        <jackson-bom.version>3.1.8</jackson-bom.version>
+        <jackson-2-bom.version>2.21.8</jackson-2-bom.version>
+        <rabbit-amqp-client.version>5.37.0</rabbit-amqp-client.version>
     </properties>
     <dependencies>
         <dependency>
