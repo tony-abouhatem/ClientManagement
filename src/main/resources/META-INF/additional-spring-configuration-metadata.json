@@ -1,0 +1,29 @@
+{
+  "properties": [
+    {
+      "name": "app.score.base-url",
+      "type": "java.net.URI",
+      "description": "Base URL of the external Score service (ticket 05)."
+    },
+    {
+      "name": "app.score.connect-timeout",
+      "type": "java.time.Duration",
+      "description": "Connect timeout for Score calls (ticket 05)."
+    },
+    {
+      "name": "app.score.read-timeout",
+      "type": "java.time.Duration",
+      "description": "Read timeout for Score calls (ticket 05)."
+    },
+    {
+      "name": "app.messaging.confirm-timeout",
+      "type": "java.time.Duration",
+      "description": "How long to wait for a RabbitMQ publisher confirm before falling back to the outbox (ticket 06)."
+    },
+    {
+      "name": "app.outbox.relay-interval",
+      "type": "java.time.Duration",
+      "description": "How often the outbox relay retries unsent events (ticket 06)."
+    }
+  ]
+}
