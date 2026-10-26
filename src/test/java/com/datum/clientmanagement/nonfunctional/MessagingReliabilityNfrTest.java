@@ -20,7 +20,7 @@ class MessagingReliabilityNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should publish CUSTOMER_CREATED within 1 second of commit when RabbitMQ is up")
-    void nfr7_publishWithin1s() { }
+    void publishWithin1s() { }
 
     // NFR-7:reliability (outage recovery)
     // Given RabbitMQ is down and the relay interval is the default 5 s
@@ -31,7 +31,7 @@ class MessagingReliabilityNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should deliver all events within 30 seconds after RabbitMQ recovers from an outage")
-    void nfr7_deliverWithin30sAfterRecovery() { }
+    void deliverWithin30sAfterRecovery() { }
 
     // NFR-7:config
     // Given OUTBOX_RELAY_INTERVAL overridden to 1s (test property)
@@ -40,7 +40,7 @@ class MessagingReliabilityNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should honour a configured relay interval when OUTBOX_RELAY_INTERVAL is overridden")
-    void nfr7_relayIntervalIsConfigurable() { }
+    void relayIntervalIsConfigurable() { }
 
     // NFR-8:idempotency
     // Given customer X ACTIVE
@@ -52,7 +52,7 @@ class MessagingReliabilityNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should apply exactly one change and one processed_events row when the same eventId arrives 10 times")
-    void nfr8_sameEventIdNTimes_appliedOnce() { }
+    void sameEventIdNTimes_appliedOnce() { }
 
     // NFR-8:idempotency (across restarts)
     // Given eventId "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" was processed and the listener container is then stopped and restarted
@@ -61,7 +61,7 @@ class MessagingReliabilityNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should still detect a duplicate eventId after the listener restarts")
-    void nfr8_dedupSurvivesRestart() { }
+    void dedupSurvivesRestart() { }
 
     // NFR-9:reliability (transient retry) — 3 attempts in total = first delivery + 2 retries
     // Given customer X ACTIVE and a processing step that always throws a transient DB exception
@@ -74,7 +74,7 @@ class MessagingReliabilityNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should attempt a transient failure exactly 3 times with growing backoff and then dead-letter it")
-    void nfr9_transientFailure_retriedThenDlq() { }
+    void transientFailure_retriedThenDlq() { }
 
     // NFR-9:reliability (no retry for poison messages)
     // Given a counting hook on the listener
@@ -83,5 +83,5 @@ class MessagingReliabilityNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should dead-letter malformed, invalid-status and unknown-customer messages with zero retries")
-    void nfr9_poisonMessages_zeroRetries() { }
+    void poisonMessages_zeroRetries() { }
 }

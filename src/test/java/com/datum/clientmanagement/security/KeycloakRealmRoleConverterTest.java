@@ -23,7 +23,7 @@ class KeycloakRealmRoleConverterTest {
 
     // AC-7 (ticket 02)
     @Test
-    void ac7_keycloakAdminRealmRole_givesPrincipalRoleAdminAuthority() {
+    void keycloakAdminRealmRole_givesPrincipalRoleAdminAuthority() {
         Jwt jwt = jwt(claims -> claims.put("realm_access", Map.of("roles", List.of("ADMIN"))));
 
         AbstractAuthenticationToken authentication = new SecurityConfig().jwtAuthenticationConverter().convert(jwt);

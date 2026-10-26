@@ -28,7 +28,7 @@ class CustomerScoreFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 200 with the score when the customer exists and Score returns 200")
-    void ac1_scoreOk_returns200() { }
+    void scoreOk_returns200() { }
 
     // Edge case (ticket 05): classification is passed through
     // Given WireMock /scores/52998224725 -> 200 {"cpf":"52998224725","score":300,"classification":"SOMETHING_NEW"}
@@ -37,7 +37,7 @@ class CustomerScoreFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should pass through an unknown classification when Score returns one")
-    void edge_unknownClassification_isPassedThrough() { }
+    void unknownClassification_isPassedThrough() { }
 
     // AC-2 (ticket 05)
     // Given no customer with id 999999
@@ -47,7 +47,7 @@ class CustomerScoreFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 404 Customer not found without calling Score when the customer does not exist")
-    void ac2_unknownCustomer_returns404WithoutCallingScore() { }
+    void unknownCustomer_returns404WithoutCallingScore() { }
 
     // AC-3 (ticket 05) / NFR-5
     // Given WireMock /scores/52998224725 -> 404
@@ -57,7 +57,7 @@ class CustomerScoreFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 404 Score not found when Score returns 404")
-    void ac3_scoreNotFound_returns404WithDistinctTitle() { }
+    void scoreNotFound_returns404WithDistinctTitle() { }
 
     // AC-4 (ticket 05) / NFR-4
     // Given WireMock scenario: 1st GET /scores/52998224725 -> 500, 2nd -> 200 {"cpf":"52998224725","score":610,"classification":"FAIR"}
@@ -67,7 +67,7 @@ class CustomerScoreFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 200 after a retry when Score fails once with 5xx and then succeeds")
-    void ac4_retryAfter5xx_returns200() { }
+    void retryAfter5xx_returns200() { }
 
     // AC-4 (ticket 05) / NFR-5
     // Given WireMock /scores/52998224725 -> 503 on every call
@@ -77,7 +77,7 @@ class CustomerScoreFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 503 when Score returns 5xx on both attempts")
-    void ac4_5xxOnBothAttempts_returns503() { }
+    void serverErrorOnBothAttempts_returns503() { }
 
     // AC-5 (ticket 05) / NFR-5
     // Given WireMock /scores/52998224725 -> 200 with fixed delay 3000 ms (> read timeout 2 s)
@@ -87,7 +87,7 @@ class CustomerScoreFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 504 within 5 seconds when Score responds slower than the read timeout")
-    void ac5_slowScore_returns504Within5s() { }
+    void slowScore_returns504Within5s() { }
 
     // AC-6 (ticket 05) / NFR-5
     // Given SCORE_BASE_URL points at a closed local port (WireMock stopped / connection refused)
@@ -96,7 +96,7 @@ class CustomerScoreFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 503 when Score is unreachable")
-    void ac6_connectionRefused_returns503() { }
+    void connectionRefused_returns503() { }
 
     // AC-7 (ticket 05) / NFR-5
     // Given WireMock /scores/52998224725 -> 200 with body "not json{"   (and, separately,
@@ -106,7 +106,7 @@ class CustomerScoreFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 502 when Score returns a malformed body or one missing score")
-    void ac7_malformedScoreBody_returns502() { }
+    void malformedScoreBody_returns502() { }
 
     // AC-8 (ticket 05)
     // Given WireMock /scores/52998224725 -> 400 (and, separately, 422)
@@ -116,7 +116,7 @@ class CustomerScoreFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 502 without retry when Score returns a 4xx other than 404")
-    void ac8_other4xx_returns502WithoutRetry() { }
+    void other4xx_returns502WithoutRetry() { }
 
     // AC-9 (ticket 05) / NFR-6
     // Given WireMock /scores/52998224725 -> 500 always, and the circuit has been opened by 10 failing calls
@@ -127,7 +127,7 @@ class CustomerScoreFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 503 without calling Score when the circuit is open")
-    void ac9_circuitOpen_returns503WithoutCallingScore() { }
+    void circuitOpen_returns503WithoutCallingScore() { }
 
     // AC-10 (ticket 05)
     // Given the files under docker/wiremock/mappings/
@@ -139,5 +139,5 @@ class CustomerScoreFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should provide OK, 404, 500 and slow WireMock stubs keyed by documented CPFs")
-    void ac10_composeWireMockStubs_existForAllScenarios() { }
+    void composeWireMockStubs_existForAllScenarios() { }
 }

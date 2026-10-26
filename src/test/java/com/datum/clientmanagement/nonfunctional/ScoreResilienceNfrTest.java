@@ -21,7 +21,7 @@ class ScoreResilienceNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should respond within 5 seconds with 504 when Score never answers")
-    void nfr4_scoreNeverAnswers_respondsWithin5s() { }
+    void scoreNeverAnswers_respondsWithin5s() { }
 
     // NFR-4:resilience (read timeout)
     // Given WireMock /scores/52998224725 -> 200 with delay 1500 ms (below the 2 s read timeout)
@@ -30,7 +30,7 @@ class ScoreResilienceNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should succeed without retry when Score answers just under the read timeout")
-    void nfr4_responseUnderReadTimeout_succeeds() { }
+    void responseUnderReadTimeout_succeeds() { }
 
     // NFR-4:resilience (connect timeout)
     // Given SCORE_BASE_URL points at a non-routable address (e.g. http://10.255.255.1:81) so the TCP connect hangs
@@ -40,7 +40,7 @@ class ScoreResilienceNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 503 within 5 seconds when the TCP connect to Score times out")
-    void nfr4_connectTimeout_givesUpWithin5s() { }
+    void connectTimeout_givesUpWithin5s() { }
 
     // NFR-4:resilience (retry only on 5xx/timeouts)
     // Given WireMock /scores/52998224725 -> 404, then separately -> 400, then -> 200 with malformed body
@@ -49,7 +49,7 @@ class ScoreResilienceNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should not retry when Score returns 4xx or a malformed 200")
-    void nfr4_nonRetryableResponses_areNotRetried() { }
+    void nonRetryableResponses_areNotRetried() { }
 
     // NFR-4:resilience (backoff)
     // Given WireMock /scores/52998224725 -> 500 always, recording request timestamps
@@ -59,7 +59,7 @@ class ScoreResilienceNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should wait the configured backoff between the two attempts when Score returns 5xx")
-    void nfr4_retryUsesBackoff() { }
+    void retryUsesBackoff() { }
 
     // NFR-5:resilience (status mapping, consolidated)
     // Given WireMock configured for each case in turn
@@ -70,7 +70,7 @@ class ScoreResilienceNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should map each Score failure mode to its documented status as a ProblemDetail")
-    void nfr5_failureModes_mapToDocumentedStatuses() { }
+    void failureModes_mapToDocumentedStatuses() { }
 
     // NFR-6:resilience
     // Given WireMock /scores/52998224725 -> 500 always and a fresh (CLOSED) circuit
@@ -81,7 +81,7 @@ class ScoreResilienceNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should open the circuit after 50% failures over 10 calls and then fail fast under 100 ms")
-    void nfr6_circuitOpensAndFailsFast() { }
+    void circuitOpensAndFailsFast() { }
 
     // NFR-6:resilience
     // Given 10 calls of which 4 fail (WireMock 500) and 6 succeed (WireMock 200)
@@ -90,7 +90,7 @@ class ScoreResilienceNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should keep the circuit closed when failures are below 50%")
-    void nfr6_belowThreshold_staysClosed() { }
+    void belowThreshold_staysClosed() { }
 
     // NFR-6:resilience (recovery; open duration 10 s per ARCHITECTURE.md)
     // Given the circuit is OPEN and WireMock now returns 200
@@ -99,5 +99,5 @@ class ScoreResilienceNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should let calls through again when the circuit open period has elapsed and Score recovered")
-    void nfr6_circuitRecoversAfterWaitDuration() { }
+    void circuitRecoversAfterWaitDuration() { }
 }
