@@ -17,7 +17,7 @@ Deliverable documentation: a Portuguese README with the 10 sections the PDF requ
 - The README commands must work on Windows (Git Bash / `mvnw.cmd`) and Linux/macOS.
 
 ## NFRs
-- NFR-16.
+- None.
 
 ## Out of scope
 - An English README, a hosted docs site.

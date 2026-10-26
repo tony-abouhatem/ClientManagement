@@ -30,7 +30,7 @@ flowchart LR
 ## Requisitos para execução
 - Docker e Docker Compose v2.
 - Para rodar fora de container ou executar os testes: JDK 21. O Maven não é necessário, porque o projeto usa o wrapper `mvnw`.
-- Portas livres (previstas, **TBD**): 8080 (app), 8081 (Keycloak), 5432 (Postgres), 5672/15672 (RabbitMQ), 8089 (WireMock).
+- Portas livres: 8080 (app), 8081 (Keycloak), 5432 (Postgres), 5672/15672 (RabbitMQ), 8089 (WireMock).
 
 ## Como iniciar as dependências
 ```bash
@@ -38,7 +38,7 @@ docker compose up -d postgres rabbitmq keycloak wiremock
 ```
 - O Keycloak importa automaticamente o realm `client-management` (`docker/keycloak/`).
 - O WireMock carrega os stubs de `docker/wiremock/mappings/`.
-- O RabbitMQ Management fica em http://localhost:15672 (`guest/guest`, **TBD**).
+- O RabbitMQ Management fica em http://localhost:15672 (`guest/guest`).
 
 ## Como iniciar a aplicação
 Tudo em containers:
@@ -65,7 +65,7 @@ curl -s -X POST http://localhost:8081/realms/client-management/protocol/openid-c
   -d username=admin -d password=admin
 ```
 - Use o `access_token` retornado no header `Authorization: Bearer <token>`.
-- O `client_id` está **TBD** (proposto `client-management-cli`).
+- O `client_id` é `client-management-cli` (cliente público com direct access grants).
 - A collection Postman em `postman/` já obtém o token automaticamente.
 
 ## Como executar os testes
@@ -96,13 +96,14 @@ curl -s -X POST http://localhost:8081/realms/client-management/protocol/openid-c
 - **Score:** o serviço externo indisponível (conexão recusada, timeout de conexão, 5xx após retries, circuit breaker aberto) gera 503. Uma resposta lenta (timeout de leitura) gera 504. Score inexistente gera 404, e uma resposta inválida gera 502.
 
 ## Configurações necessárias
-Os valores padrão ficam em `application.yaml` e podem ser sobrescritos por variáveis de ambiente. Os nomes são **TBD**:
+Os valores padrão ficam em `application.yaml` e podem ser sobrescritos por variáveis de ambiente (lista completa em `.env.example`):
 
 | Variável | Descrição | Padrão (dev) |
 |----------|-----------|--------------|
-| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | PostgreSQL | `jdbc:postgresql://localhost:5432/clientmanagement` / TBD |
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | PostgreSQL | `jdbc:postgresql://localhost:5432/clientmanagement` / `clientmanagement` / `clientmanagement` |
 | `RABBITMQ_HOST` / `RABBITMQ_PORT` / `RABBITMQ_USERNAME` / `RABBITMQ_PASSWORD` | RabbitMQ | `localhost` / `5672` / `guest` / `guest` |
 | `ISSUER_URI` | Issuer do Keycloak | `http://localhost:8081/realms/client-management` |
+| `JWK_SET_URI` | Chaves de assinatura do Keycloak (no compose: `http://keycloak:8080/...`) | `http://localhost:8081/realms/client-management/protocol/openid-connect/certs` |
 | `SCORE_BASE_URL` | Serviço de Score | `http://localhost:8089` |
 | `SCORE_CONNECT_TIMEOUT` / `SCORE_READ_TIMEOUT` | Timeouts | `1s` / `2s` |
 | `OUTBOX_RELAY_INTERVAL` | Intervalo do reenvio de eventos | `5s` |

@@ -1,0 +1,7 @@
+# "test" profile: PostgreSQL and RabbitMQ come from Testcontainers through @ServiceConnection
+# (see TestcontainersConfiguration), so no connection settings are needed here.
+# Keycloak is not started in tests: JWTs are mocked with spring-security-test.
+logging:
+  level:
+    org.testcontainers: INFO
+    tc: INFO
