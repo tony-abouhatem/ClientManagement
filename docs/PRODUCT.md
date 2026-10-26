@@ -78,4 +78,3 @@ Evaluators need to see how a candidate handles a realistic service: CRUD, securi
 | NFR-13 | API | All errors use RFC 7807 `ProblemDetail`. Validation errors include `errors[]` with `field` and `message`. |
 | NFR-14 | API | Pagination (`GET /customers` and `/customers/search`): defaults `page=0`, `size=20` when omitted. `page < 0`, `size < 1` or `size > 100` returns **400** with `errors[]` naming the field (e.g. "size must be between 1 and 100"). There is no clamping. Invalid `status` returns 400. |
 | NFR-15 | Performance | p95 below 300 ms for CRUD/list on a local stack with ≤ 10k customers (measured informally; no load-test tooling required). |
-| NFR-16 | Config | No secrets or URLs are hard-coded. Everything is set through `application.yaml` with env-var overrides, documented in the README. |

@@ -1,0 +1,94 @@
+# Local stack: app + PostgreSQL + RabbitMQ + Keycloak + WireMock.
+# Values use ${VAR:-default} so a .env file (see .env.example) can override the dev defaults.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-clientmanagement}
+      POSTGRES_USER: ${DB_USERNAME:-clientmanagement}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-clientmanagement}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:4.1-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HEALTH_ENABLED: "true"
+      # Tokens always carry iss=http://localhost:8081/realms/client-management, whether they are requested
+      # from the host (Postman, curl) or from inside the compose network. The app validates that issuer and
+      # fetches signing keys through the internal hostname (JWK_SET_URI below).
+      KC_HOSTNAME: http://localhost:8081
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./docker/keycloak:/opt/keycloak/data/import:ro
+    healthcheck:
+      # The image has no curl; bash's /dev/tcp probes the management port's readiness endpoint.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q 'HTTP/1.1 200' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  wiremock:
+    image: wiremock/wiremock:3.13.2
+    command: ["--global-response-templating"]
+    ports:
+      - "8089:8080"
+    volumes:
+      - ./docker/wiremock/mappings:/home/wiremock/mappings:ro
+      - ./docker/wiremock/__files:/home/wiremock/__files:ro
+    healthcheck:
+      # /bin/sh is dash in this image, so bash runs the /dev/tcp probe (curl is not guaranteed to be installed).
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /__admin/health HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q 'HTTP/1.1 200' <&3"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-clientmanagement}
+      DB_USERNAME: ${DB_USERNAME:-clientmanagement}
+      DB_PASSWORD: ${DB_PASSWORD:-clientmanagement}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      ISSUER_URI: http://localhost:8081/realms/client-management
+      JWK_SET_URI: http://keycloak:8080/realms/client-management/protocol/openid-connect/certs
+      SCORE_BASE_URL: http://wiremock:8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      wiremock:
+        condition: service_healthy
