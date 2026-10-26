@@ -16,7 +16,7 @@ Evaluators need to see how a candidate handles a realistic service: CRUD, securi
 - **Downstream system**: consumes `CUSTOMER_CREATED` events.
 
 ## Goals and success metrics
-- Every endpoint, behaviour scenario and README section listed in the PDF is implemented and documented (checklist in `docs/backlog/README.md`).
+- Every endpoint, behaviour scenario and README section listed in the PDF is implemented and documented (see "PDF coverage checklist" below).
 - `docker compose up` starts the whole environment from a clean clone with no manual steps.
 - `./mvnw verify` passes (Docker is required for Testcontainers).
 - Each failure scenario in the PDF has at least one automated test.
@@ -78,3 +78,33 @@ Evaluators need to see how a candidate handles a realistic service: CRUD, securi
 | NFR-13 | API | All errors use RFC 7807 `ProblemDetail`. Validation errors include `errors[]` with `field` and `message`. |
 | NFR-14 | API | Pagination (`GET /customers` and `/customers/search`): defaults `page=0`, `size=20` when omitted. `page < 0`, `size < 1` or `size > 100` returns **400** with `errors[]` naming the field (e.g. "size must be between 1 and 100"). There is no clamping. Invalid `status` returns 400. |
 | NFR-15 | Performance | p95 below 300 ms for CRUD/list on a local stack with ≤ 10k customers (measured informally; no load-test tooling required). |
+
+## Backlog (GitHub issues)
+Tickets live only as GitHub issues (label `ticket`) in `tony-abouhatem/ClientManagement`. Implementation order:
+
+| Ticket | Issue | Depends on |
+|--------|-------|-----------|
+| 01 Project foundation and local stack | #2 | — |
+| 02 Security: OAuth2 Resource Server with roles | #3 | 01 |
+| 03 Customer CRUD, validation and error handling | #4 | 01, 02 |
+| 04 List, search by name, filter by status | #5 | 03 |
+| 05 Score integration with resilience | #6 | 03 |
+| 06 Publish CUSTOMER_CREATED (after commit, outbox fallback) | #7 | 01, 03 |
+| 07 Consume CUSTOMER_STATUS_CHANGE idempotently | #8 | 01, 03 |
+| 08 README finalization, OpenAPI and Postman | #9 | 01–07 |
+
+Tickets 04–07 can run in parallel once 03 is done.
+
+### PDF coverage checklist
+- Endpoints CRUD, search, status filter → 03, 04. Score → 05.
+- OAuth2/JWT, USER/ADMIN → 02.
+- CUSTOMER_CREATED → 06. CUSTOMER_STATUS_CHANGE plus duplicates → 07.
+- Scenarios:
+  - Invalid data, duplicate CPF, not found → 03.
+  - 401, 403 → 02.
+  - External service down or slow → 05.
+  - Component temporarily down → 01 (NFR-10), 06.
+  - Message processing failure, duplicate message → 07.
+- Relational DB, JPA, validation, errors, externalized config, Docker → 01, 03.
+- JUnit tests → every ticket.
+- README with 10 sections → 08.
