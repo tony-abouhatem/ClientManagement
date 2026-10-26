@@ -6,11 +6,13 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class KeycloakRealmRoleConverterTest {
@@ -21,7 +23,7 @@ class KeycloakRealmRoleConverterTest {
 
     // AC-7 (ticket 02)
     @Test
-    void ac7_keycloakAdminRealmRole_givesPrincipalRoleAdminAuthority() {
+    void keycloakAdminRealmRole_givesPrincipalRoleAdminAuthority() {
         Jwt jwt = jwt(claims -> claims.put("realm_access", Map.of("roles", List.of("ADMIN"))));
 
         AbstractAuthenticationToken authentication = new SecurityConfig().jwtAuthenticationConverter().convert(jwt);
@@ -99,6 +101,10 @@ class KeycloakRealmRoleConverterTest {
     }
 
     private static List<String> authorityNames(Collection<? extends GrantedAuthority> authorities) {
-        return authorities.stream().map(GrantedAuthority::getAuthority).toList();
+        List<String> names = new ArrayList<>();
+        for (GrantedAuthority authority : authorities) {
+            names.add(requireNonNull(authority.getAuthority()));
+        }
+        return names;
     }
 }

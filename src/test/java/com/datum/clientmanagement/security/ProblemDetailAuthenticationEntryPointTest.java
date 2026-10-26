@@ -10,6 +10,7 @@ import org.springframework.security.oauth2.server.resource.InvalidBearerTokenExc
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ProblemDetailAuthenticationEntryPointTest {
@@ -28,7 +29,7 @@ class ProblemDetailAuthenticationEntryPointTest {
 
         assertThat(response.getStatus()).isEqualTo(401);
         assertThat(response.getHeader(HttpHeaders.WWW_AUTHENTICATE)).startsWith("Bearer");
-        assertThat(MediaType.parseMediaType(response.getContentType())).isEqualTo(MediaType.APPLICATION_PROBLEM_JSON);
+        assertThat(MediaType.parseMediaType(requireNonNull(response.getContentType()))).isEqualTo(MediaType.APPLICATION_PROBLEM_JSON);
         JsonNode body = JsonMapper.builder().build().readTree(response.getContentAsString());
         assertThat(body.path("type").asString()).isEqualTo("about:blank");
         assertThat(body.path("title").asString()).isEqualTo("Unauthorized");

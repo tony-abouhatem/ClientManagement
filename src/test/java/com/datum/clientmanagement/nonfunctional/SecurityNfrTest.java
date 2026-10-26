@@ -48,7 +48,7 @@ class SecurityNfrTest {
     // Then each response is 401 or 404 — never 200 (only /actuator/health/** is public)
     @Test
     @DisplayName("should not expose actuator endpoints other than health when called without a token")
-    void nfr2_nonHealthActuatorEndpoints_areNotPublic() throws Exception {
+    void nonHealthActuatorEndpoints_areNotPublic() throws Exception {
         List<String> paths = List.of("/actuator/env", "/actuator/beans", "/actuator/configprops", "/actuator/metrics",
                 "/actuator");
 
@@ -63,7 +63,7 @@ class SecurityNfrTest {
     // Then each response is not 401/403 (health subpaths are public)
     @Test
     @DisplayName("should allow health subpaths without a token")
-    void nfr2_healthSubpaths_arePublic() throws Exception {
+    void healthSubpaths_arePublic() throws Exception {
         for (String path : List.of("/actuator/health/liveness", "/actuator/health/readiness")) {
             assertThat(statusOf(path)).as("GET %s", path).isNotIn(401, 403);
         }
@@ -76,7 +76,7 @@ class SecurityNfrTest {
     //  And the body is problem+json with no "trace" and no "exception" fields
     @Test
     @DisplayName("should return a Bearer challenge and a clean problem body when the token is missing")
-    void nfr1_401_hasBearerChallengeAndNoInternals() throws Exception {
+    void unauthorized_hasBearerChallengeAndNoInternals() throws Exception {
         mockMvc.perform(get("/customers"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
@@ -93,7 +93,7 @@ class SecurityNfrTest {
     // Then there is no Set-Cookie header (no JSESSIONID; stateless session)
     @Test
     @DisplayName("should not create an HTTP session when an authenticated request is served")
-    void nfr1_noSessionCookie_isIssued() throws Exception {
+    void noSessionCookie_isIssued() throws Exception {
         MvcResult result = mockMvc.perform(get("/customers")
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andReturn();
@@ -113,7 +113,7 @@ class SecurityNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should treat SQL injection payloads in name as literal text")
-    void nfrSecurity_sqlInjectionInName_isInert() { }
+    void sqlInjectionInName_isInert() { }
 
     // NFR:security (information leakage) — ticket 03 / NFR-13
     // Given an ADMIN
@@ -122,7 +122,7 @@ class SecurityNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should not leak stack traces, class names or SQL in any error response")
-    void nfrSecurity_errorResponses_doNotLeakInternals() { }
+    void errorResponses_doNotLeakInternals() { }
 
     private int statusOf(String path) throws Exception {
         return mockMvc.perform(get(path)).andReturn().getResponse().getStatus();

@@ -31,7 +31,7 @@ class CustomerCreatedEventFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should publish one CUSTOMER_CREATED message when a customer is created and RabbitMQ is up")
-    void ac1_createCustomer_publishesCustomerCreated() { }
+    void createCustomer_publishesCustomerCreated() { }
 
     // AC-2 (ticket 06)
     // Given RabbitMQ is up, queue "customer.created" empty, and an existing customer with cpf 52998224725
@@ -42,7 +42,7 @@ class CustomerCreatedEventFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should publish nothing and write no outbox row when the POST fails validation or hits a duplicate CPF")
-    void ac2_failedPost_publishesNothing() { }
+    void failedPost_publishesNothing() { }
 
     // AC-2 (ticket 06)
     // Given RabbitMQ is up and the customer-creation transaction is forced to roll back after the insert
@@ -54,7 +54,7 @@ class CustomerCreatedEventFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should publish nothing when the creation transaction rolls back")
-    void ac2_rolledBackTransaction_publishesNothing() { }
+    void rolledBackTransaction_publishesNothing() { }
 
     // AC-3 (ticket 06)
     // Given a test listener on "customer.created" that, on receipt, immediately calls GET /customers/{customerId} as USER
@@ -63,7 +63,7 @@ class CustomerCreatedEventFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should let a consumer read the customer when it receives CUSTOMER_CREATED")
-    void ac3_publishAfterCommit_customerIsReadable() { }
+    void publishAfterCommit_customerIsReadable() { }
 
     // AC-4 (ticket 06) / NFR-10
     // Given RabbitMQ is down
@@ -74,7 +74,7 @@ class CustomerCreatedEventFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 201 and store one pending outbox row when RabbitMQ is down")
-    void ac4_rabbitDown_returns201AndWritesOutbox() { }
+    void rabbitDown_returns201AndWritesOutbox() { }
 
     // AC-4 (ticket 06)
     // Given RabbitMQ is up but the publish is nacked / the confirm times out / the message is returned as unroutable
@@ -85,7 +85,7 @@ class CustomerCreatedEventFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should store a pending outbox row when the publish is nacked, times out or is returned")
-    void ac4_nackOrTimeoutOrReturn_writesOutbox() { }
+    void nackOrTimeoutOrReturn_writesOutbox() { }
 
     // AC-5 (ticket 06) / NFR-7
     // Given RabbitMQ was down, 1 pending outbox row exists with event_id E for customer X
@@ -95,7 +95,7 @@ class CustomerCreatedEventFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should republish pending outbox rows with their original eventId when RabbitMQ recovers")
-    void ac5_relayPublishesPendingRowsAfterRecovery() { }
+    void relayPublishesPendingRowsAfterRecovery() { }
 
     // AC-5 (ticket 06)
     // Given 3 pending outbox rows created at t1 < t2 < t3 (customers A, B, C)
@@ -104,7 +104,7 @@ class CustomerCreatedEventFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should relay pending rows in created_at order")
-    void ac5_relayOrdersByCreatedAt() { }
+    void relayOrdersByCreatedAt() { }
 
     // AC-6 (ticket 06)
     // Given 1 pending outbox row with attempts 0, last_error NULL, next_attempt_at N0, and RabbitMQ still down
@@ -115,7 +115,7 @@ class CustomerCreatedEventFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should increment attempts, set last_error and push next_attempt_at when a relay publish fails")
-    void ac6_relayFailure_updatesAttemptsAndBackoff() { }
+    void relayFailure_updatesAttemptsAndBackoff() { }
 
     // AC-7 (ticket 06)
     // Given 10 pending outbox rows and RabbitMQ up
@@ -125,7 +125,7 @@ class CustomerCreatedEventFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should send each outbox row once when two relay runs overlap")
-    void ac7_overlappingRelays_doNotDoubleSend() { }
+    void overlappingRelays_doNotDoubleSend() { }
 
     // AC-8 (ticket 06)
     // Given a fresh RabbitMQ with no topology
@@ -135,5 +135,5 @@ class CustomerCreatedEventFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should declare the durable customer.events exchange and customer.created queue at startup")
-    void ac8_topologyDeclaredAtStartup() { }
+    void topologyDeclaredAtStartup() { }
 }

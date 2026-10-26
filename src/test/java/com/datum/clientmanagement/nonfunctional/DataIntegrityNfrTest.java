@@ -24,7 +24,7 @@ class DataIntegrityNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should reject a stale-version PUT with 409 and leave the stored row untouched")
-    void nfr12_staleUpdate_returns409() { }
+    void staleUpdate_returns409() { }
 
     // NFR:data-integrity
     // Given a customers row with cpf "52998224725"

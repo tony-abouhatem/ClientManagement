@@ -22,7 +22,7 @@ class PrivacyLoggingNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should never log the full CPF when customers are created, read, updated, deleted or rejected")
-    void nfr3_crudFlows_doNotLogFullCpf() { }
+    void crudFlows_doNotLogFullCpf() { }
 
     // NFR-3:privacy — ticket 05 edge case
     // Given log capture at DEBUG and WireMock /scores/11144477735 returning 200, then 500, then a 3 s delay
@@ -31,7 +31,7 @@ class PrivacyLoggingNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should never log the full CPF when calling the Score service, including on failures")
-    void nfr3_scoreCalls_doNotLogFullCpf() { }
+    void scoreCalls_doNotLogFullCpf() { }
 
     // NFR-3:privacy — confirmed mask: 9 asterisks + last 2 digits
     // Given log capture at DEBUG
@@ -44,5 +44,5 @@ class PrivacyLoggingNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should log the CPF as *********25 when a CPF of 52998224725 is logged")
-    void nfr3_loggedCpf_usesConfirmedMaskFormat() { }
+    void loggedCpf_usesConfirmedMaskFormat() { }
 }

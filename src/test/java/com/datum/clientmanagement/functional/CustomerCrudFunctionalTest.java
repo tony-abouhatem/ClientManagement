@@ -30,7 +30,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 201 with Location and status ACTIVE when an ADMIN creates a valid customer without status")
-    void ac1_createCustomer_returns201() { }
+    void createCustomer_returns201() { }
 
     // AC-1 (ticket 03)
     // Given an ADMIN
@@ -39,7 +39,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should keep the given status when POST includes status INACTIVE")
-    void ac1_createCustomerWithExplicitStatus_keepsStatus() { }
+    void createCustomerWithExplicitStatus_keepsStatus() { }
 
     // AC-2 (ticket 03)
     // Given an ADMIN
@@ -50,7 +50,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should store and return the CPF as 11 digits when a masked CPF is posted")
-    void ac2_maskedCpf_isNormalized() { }
+    void maskedCpf_isNormalized() { }
 
     // AC-2 (ticket 03) edge case: surrounding spaces / mixed punctuation
     // Given an ADMIN
@@ -59,7 +59,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should normalize the CPF when it has surrounding spaces or mixed punctuation")
-    void ac2_cpfWithSpacesAndMixedPunctuation_isNormalized() { }
+    void cpfWithSpacesAndMixedPunctuation_isNormalized() { }
 
     // AC-3 (ticket 03)
     // Given an ADMIN
@@ -70,7 +70,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 400 with errors[].field=cpf when the CPF check digits are invalid")
-    void ac3_invalidCheckDigits_returns400() { }
+    void invalidCheckDigits_returns400() { }
 
     // AC-3 (ticket 03)
     // Given an ADMIN
@@ -79,7 +79,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 400 with errors[].field=cpf when the CPF is a repeated-digit sequence")
-    void ac3_repeatedDigitCpf_returns400() { }
+    void repeatedDigitCpf_returns400() { }
 
     // AC-3 (ticket 03)
     // Given an ADMIN
@@ -88,7 +88,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 400 with errors[].field=cpf when the CPF does not have 11 digits")
-    void ac3_wrongLengthCpf_returns400() { }
+    void wrongLengthCpf_returns400() { }
 
     // AC-4 (ticket 03) / NFR-13
     // Given an ADMIN
@@ -102,7 +102,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 400 with one error for the invalid field when POST has an invalid name, email or status")
-    void ac4_postInvalidSingleField_returns400() { }
+    void postInvalidSingleField_returns400() { }
 
     // AC-4 (ticket 03) boundary
     // Given an ADMIN
@@ -111,7 +111,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should accept the customer when the name has exactly 150 characters")
-    void ac4_nameAt150Chars_isAccepted() { }
+    void nameAt150Chars_isAccepted() { }
 
     // AC-4 (ticket 03) / NFR-13
     // Given an ADMIN
@@ -120,7 +120,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return one errors[] entry per invalid field when several fields are invalid")
-    void ac4_multipleInvalidFields_returnsOneErrorPerField() { }
+    void multipleInvalidFields_returnsOneErrorPerField() { }
 
     // AC-4 (ticket 03)
     // Given an existing customer id X (cpf 52998224725) at version 0
@@ -130,7 +130,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 400 with one error per invalid field when PUT has invalid name, email and status")
-    void ac4_putInvalidFields_returns400() { }
+    void putInvalidFields_returns400() { }
 
     // AC-5 (ticket 03)
     // Given an existing customer with cpf "52998224725"
@@ -141,7 +141,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 409 when POST uses an existing CPF, masked or raw")
-    void ac5_duplicateCpf_returns409() { }
+    void duplicateCpf_returns409() { }
 
     // AC-5 (ticket 03)
     // Given no customer with cpf "93541134780"
@@ -151,7 +151,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 409 for the loser when two concurrent POSTs use the same CPF")
-    void ac5_concurrentDuplicateCpf_returns409ForLoser() { }
+    void concurrentDuplicateCpf_returns409ForLoser() { }
 
     // Edge case (ticket 03): email is not unique
     // Given an existing customer with email "shared@example.com"
@@ -160,7 +160,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should allow creation when the email is already used by another customer")
-    void edge_duplicateEmail_isAllowed() { }
+    void duplicateEmail_isAllowed() { }
 
     // Edge case (ticket 03): name is trimmed
     // Given an ADMIN
@@ -169,7 +169,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should trim the name when it has surrounding spaces")
-    void edge_nameIsTrimmed() { }
+    void nameIsTrimmed() { }
 
     // AC-6 (ticket 03)
     // Given customer X {name:"Ana Souza", cpf:"52998224725", email:"ana@example.com", status:ACTIVE, version:0} with updatedAt T0
@@ -180,7 +180,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 200 with updated fields and a later updatedAt when PUT omits the CPF")
-    void ac6_updateWithoutCpf_returns200() { }
+    void updateWithoutCpf_returns200() { }
 
     // AC-6 (ticket 03)
     // Given customer X with cpf "52998224725" at version 0
@@ -189,7 +189,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 200 when PUT sends the same CPF in masked form")
-    void ac6_updateWithUnchangedMaskedCpf_returns200() { }
+    void updateWithUnchangedMaskedCpf_returns200() { }
 
     // AC-7 (ticket 03)
     // Given customer X with cpf "52998224725", name "Ana Souza", version 0
@@ -199,7 +199,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 422 and change nothing when PUT sends a different CPF")
-    void ac7_updateWithDifferentCpf_returns422() { }
+    void updateWithDifferentCpf_returns422() { }
 
     // AC-8 (ticket 03)
     // Given no customer with id 999999
@@ -211,7 +211,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 404 problem when GET, PUT or DELETE targets a nonexistent id")
-    void ac8_unknownId_returns404() { }
+    void unknownId_returns404() { }
 
     // AC-8 (ticket 03) — happy-path read
     // Given customer X created with cpf 52998224725
@@ -231,7 +231,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 204 and make the customer unreachable when DELETE targets an existing id")
-    void ac9_delete_returns204ThenGetReturns404() { }
+    void delete_returns204ThenGetReturns404() { }
 
     // AC-10 (ticket 03)
     // Given an ADMIN
@@ -241,7 +241,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 400 problem without stack trace when the JSON body is malformed")
-    void ac10_malformedJson_returns400() { }
+    void malformedJson_returns400() { }
 
     // AC-10 (ticket 03)
     // Given an ADMIN
@@ -250,7 +250,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 400 problem when the id is not numeric")
-    void ac10_nonNumericId_returns400() { }
+    void nonNumericId_returns400() { }
 
     // AC-11 (ticket 03) / NFR-12 — deterministic stale update
     // Given customer X created with name "Ana Souza", cpf 52998224725, email "ana@example.com"
@@ -263,7 +263,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 409 and keep the current data when PUT sends a stale version")
-    void ac11_staleVersion_returns409() { }
+    void staleVersion_returns409() { }
 
     // AC-11 (ticket 03) / NFR-12
     // Given customer X at version 0
@@ -273,7 +273,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 400 with errors[].field=version when PUT omits the version")
-    void ac11_putWithoutVersion_returns400() { }
+    void putWithoutVersion_returns400() { }
 
     // AC-11 (ticket 03) / NFR-12 — race where both requests pass the application-level version check
     // Given customer X at version 0
@@ -284,7 +284,7 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 409 for one of two concurrent updates that both send the same version")
-    void ac11_concurrentUpdatesSameVersion_oneReturns409() { }
+    void concurrentUpdatesSameVersion_oneReturns409() { }
 
     // Edge case (ticket 03)
     // Given an unexpected RuntimeException is thrown while handling GET /customers/{id}
@@ -294,5 +294,5 @@ class CustomerCrudFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return a generic 500 problem without internals when an unexpected exception occurs")
-    void edge_unexpectedException_returnsGeneric500() { }
+    void unexpectedException_returnsGeneric500() { }
 }

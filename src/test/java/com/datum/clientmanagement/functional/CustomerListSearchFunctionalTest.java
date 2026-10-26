@@ -24,7 +24,7 @@ class CustomerListSearchFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return the first 20 of 25 customers with page metadata when no parameters are given")
-    void ac1_listDefaults_returnsFirstPageOf20() { }
+    void listDefaults_returnsFirstPageOf20() { }
 
     // AC-1 (ticket 04)
     // Given 25 customers
@@ -33,7 +33,7 @@ class CustomerListSearchFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return the remaining 5 customers when page=1 is requested")
-    void ac1_listSecondPage_returnsRemaining() { }
+    void listSecondPage_returnsRemaining() { }
 
     // AC-2 (ticket 04)
     // Given 3 ACTIVE and 2 INACTIVE customers
@@ -42,7 +42,7 @@ class CustomerListSearchFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return only ACTIVE customers when status=ACTIVE")
-    void ac2_filterByStatus_returnsOnlyMatching() { }
+    void filterByStatus_returnsOnlyMatching() { }
 
     // AC-3 (ticket 04) / NFR-14
     // Given any data
@@ -51,7 +51,7 @@ class CustomerListSearchFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 400 problem when status is not a valid value")
-    void ac3_invalidStatus_returns400() { }
+    void invalidStatus_returns400() { }
 
     // AC-4 (ticket 04)
     // Given customers "João da Silva" and "Maria Souza"
@@ -60,7 +60,7 @@ class CustomerListSearchFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should find João da Silva when searching case- and accent-insensitively by part of the name")
-    void ac4_searchCaseAndAccentInsensitive_returnsMatch() { }
+    void searchCaseAndAccentInsensitive_returnsMatch() { }
 
     // AC-5 (ticket 04)
     // Given any data
@@ -69,7 +69,7 @@ class CustomerListSearchFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 400 when search name is missing or blank")
-    void ac5_searchMissingOrBlankName_returns400() { }
+    void searchMissingOrBlankName_returns400() { }
 
     // AC-6 (ticket 04)
     // Given "João da Silva" ACTIVE, "João Pereira" INACTIVE, "Maria Souza" INACTIVE
@@ -78,7 +78,7 @@ class CustomerListSearchFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should apply name and status filters together when both are given")
-    void ac6_nameAndStatusFilters_areAnded() { }
+    void nameAndStatusFilters_areAnded() { }
 
     // AC-7 (ticket 04) / NFR-14 — no clamping: out-of-range paging is rejected
     // Given 25 customers
@@ -91,7 +91,7 @@ class CustomerListSearchFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 400 naming the field when /customers gets size=0, size=-5, size=101 or page=-1")
-    void ac7_listOutOfRangePaging_returns400() { }
+    void listOutOfRangePaging_returns400() { }
 
     // AC-7 (ticket 04) / NFR-14
     // Given customer "João da Silva"
@@ -104,7 +104,7 @@ class CustomerListSearchFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 400 naming the field when /customers/search gets size=0, size=-5, size=101 or page=-1")
-    void ac7_searchOutOfRangePaging_returns400() { }
+    void searchOutOfRangePaging_returns400() { }
 
     // AC-7 (ticket 04) / NFR-14 — boundaries
     // Given 150 customers
@@ -114,7 +114,7 @@ class CustomerListSearchFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should accept size=1, size=100 and page=0 when they are at the allowed boundaries")
-    void ac7_pagingBoundaries_areAccepted() { }
+    void pagingBoundaries_areAccepted() { }
 
     // AC-8 (ticket 04)
     // Given customers created in this order: "Carla", "Ana", "Bruno"
@@ -123,7 +123,7 @@ class CustomerListSearchFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should order results by name when sort=name,asc")
-    void ac8_sortByName_ordersByName() { }
+    void sortByName_ordersByName() { }
 
     // AC-8 (ticket 04)
     // Given customers created in this order: "Carla", "Ana", "Bruno" (ids ascending)
@@ -132,7 +132,7 @@ class CustomerListSearchFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should order results by id ascending when no sort is given")
-    void ac8_defaultSort_isIdAsc() { }
+    void defaultSort_isIdAsc() { }
 
     // Edge case (ticket 04)
     // Given any data
@@ -141,7 +141,7 @@ class CustomerListSearchFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 400 when sorting by an unknown property")
-    void edge_sortByUnknownProperty_returns400() { }
+    void sortByUnknownProperty_returns400() { }
 
     // AC-9 (ticket 04)
     // Given customer "João da Silva" only
@@ -150,7 +150,7 @@ class CustomerListSearchFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 200 with empty content when nothing matches")
-    void ac9_noMatches_returnsEmptyPage() { }
+    void noMatches_returnsEmptyPage() { }
 
     // Edge case (ticket 04): SQL wildcards are literal
     // Given customers "Ana Souza" and "50% Off Ltda" and "a_b Comercio"
@@ -161,5 +161,5 @@ class CustomerListSearchFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should match % and _ literally when they appear in the search name")
-    void edge_sqlWildcardsMatchedLiterally() { }
+    void sqlWildcardsMatchedLiterally() { }
 }
