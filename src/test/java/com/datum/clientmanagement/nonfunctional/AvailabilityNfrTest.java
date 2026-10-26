@@ -21,7 +21,7 @@ class AvailabilityNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should start and report rabbit DOWN in health when RabbitMQ is unavailable at startup")
-    void nfr10_startsWithoutRabbit_healthShowsRabbitDown() { }
+    void startsWithoutRabbit_healthShowsRabbitDown() { }
 
     // NFR-10:availability
     // Given the app started with RabbitMQ down
@@ -31,7 +31,7 @@ class AvailabilityNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should keep CRUD working when RabbitMQ is down")
-    void nfr10_crudWorksWithoutRabbit() { }
+    void crudWorksWithoutRabbit() { }
 
     // NFR-10:availability
     // Given Postgres and RabbitMQ are up and SCORE_BASE_URL points at a closed port (WireMock down)
@@ -41,5 +41,5 @@ class AvailabilityNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should start and keep CRUD working when the Score service is down")
-    void nfr10_startsWithoutScoreService() { }
+    void startsWithoutScoreService() { }
 }

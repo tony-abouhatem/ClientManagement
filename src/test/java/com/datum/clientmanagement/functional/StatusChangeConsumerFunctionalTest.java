@@ -29,7 +29,7 @@ class StatusChangeConsumerFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should set the customer INACTIVE and record the eventId when a valid status change is consumed")
-    void ac1_validStatusChange_isApplied() { }
+    void validStatusChange_isApplied() { }
 
     // AC-2 (ticket 07) / NFR-8
     // Given customer X ACTIVE
@@ -41,7 +41,7 @@ class StatusChangeConsumerFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should apply the change once and ack every delivery when the same message arrives 3 times")
-    void ac2_duplicateDeliveries_appliedOnce() { }
+    void duplicateDeliveries_appliedOnce() { }
 
     // AC-3 (ticket 07)
     // Given customer X ACTIVE
@@ -53,7 +53,7 @@ class StatusChangeConsumerFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should not revert the status when an old eventId is redelivered after a newer change")
-    void ac3_replayedOldEvent_doesNotRevert() { }
+    void replayedOldEvent_doesNotRevert() { }
 
     // AC-4 (ticket 07) / NFR-9
     // Given customer X ACTIVE
@@ -70,7 +70,7 @@ class StatusChangeConsumerFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should send the message straight to the DLQ when it is malformed, incomplete, has an invalid status or wrong eventType")
-    void ac4_invalidMessage_goesToDlqWithoutRetry() { }
+    void invalidMessage_goesToDlqWithoutRetry() { }
 
     // AC-5 (ticket 07) / NFR-9
     // Given no customer with id 999999
@@ -81,7 +81,7 @@ class StatusChangeConsumerFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should send the message to the DLQ and record nothing when the customerId is unknown")
-    void ac5_unknownCustomer_goesToDlq() { }
+    void unknownCustomer_goesToDlq() { }
 
     // AC-6 (ticket 07) / NFR-9
     // Given customer X ACTIVE and the processing step throws a transient exception (e.g. DataAccessResourceFailureException)
@@ -93,7 +93,7 @@ class StatusChangeConsumerFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should try exactly 3 times then send to the DLQ when a transient failure persists")
-    void ac6_persistentTransientFailure_goesToDlqAfter3Attempts() { }
+    void persistentTransientFailure_goesToDlqAfter3Attempts() { }
 
     // AC-6 (ticket 07)
     // Given customer X ACTIVE and the processing step throws a transient exception on the 1st and 2nd attempts,
@@ -105,7 +105,7 @@ class StatusChangeConsumerFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should apply the change once when the third and last attempt succeeds after two transient failures")
-    void ac6_transientFailureRecoversOnThirdAttempt_appliedOnce() { }
+    void transientFailureRecoversOnThirdAttempt_appliedOnce() { }
 
     // AC-7 (ticket 07)
     // Given customer X already INACTIVE with version V
@@ -117,7 +117,7 @@ class StatusChangeConsumerFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should record the event and ack as a no-op when the status already matches")
-    void ac7_sameStatus_isNoOpButRecorded() { }
+    void sameStatus_isNoOpButRecorded() { }
 
     // AC-8 (ticket 07)
     // Given a fresh RabbitMQ with no topology
@@ -128,7 +128,7 @@ class StatusChangeConsumerFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should declare and bind the status-change queue with DLX and the DLQ at startup")
-    void ac8_topologyDeclaredAtStartup() { }
+    void topologyDeclaredAtStartup() { }
 
     // Edge case (ticket 07)
     // Given customer X ACTIVE
@@ -139,7 +139,7 @@ class StatusChangeConsumerFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should apply once and ack both when two duplicate deliveries are processed concurrently")
-    void edge_concurrentDuplicates_appliedOnce() { }
+    void concurrentDuplicates_appliedOnce() { }
 
     // Edge case (ticket 07)
     // Given customer X ACTIVE
@@ -148,5 +148,5 @@ class StatusChangeConsumerFunctionalTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should parse the body as JSON when the content_type header is missing")
-    void edge_missingContentType_isParsedAsJson() { }
+    void missingContentType_isParsedAsJson() { }
 }

@@ -122,7 +122,7 @@ class SecurityFunctionalTest {
     //  And body has "status":401 and a non-empty "title"
     @Test
     @DisplayName("should return 401 problem+json when any /customers endpoint is called without a token")
-    void ac1_noToken_returns401ProblemDetail() throws Exception {
+    void noToken_returns401ProblemDetail() throws Exception {
         List<MockHttpServletRequestBuilder> requests = List.of(
                 get("/customers"),
                 get("/customers/1"),
@@ -144,7 +144,7 @@ class SecurityFunctionalTest {
     // Then the response is 401 with Content-Type "application/problem+json"
     @Test
     @DisplayName("should return 401 when the JWT is expired")
-    void ac2_expiredToken_returns401() throws Exception {
+    void expiredToken_returns401() throws Exception {
         Instant now = Instant.now();
         String token = signedToken(TRUSTED_KEY, claims -> claims
                 .issuedAt(now.minusSeconds(VALID_FOR_SECONDS))
@@ -159,7 +159,7 @@ class SecurityFunctionalTest {
     // Then the response is 401 with Content-Type "application/problem+json"
     @Test
     @DisplayName("should return 401 when the JWT signature is invalid")
-    void ac2_badSignature_returns401() throws Exception {
+    void badSignature_returns401() throws Exception {
         String token = signedToken(UNTRUSTED_KEY, claims -> { });
 
         expectProblem(mockMvc.perform(get("/customers").header(HttpHeaders.AUTHORIZATION, bearer(token))), 401);
@@ -171,7 +171,7 @@ class SecurityFunctionalTest {
     // Then the response is 401 with Content-Type "application/problem+json"
     @Test
     @DisplayName("should return 401 when the JWT issuer is wrong")
-    void ac2_wrongIssuer_returns401() throws Exception {
+    void wrongIssuer_returns401() throws Exception {
         String token = signedToken(TRUSTED_KEY, claims -> claims.issuer(WRONG_ISSUER));
 
         expectProblem(mockMvc.perform(get("/customers").header(HttpHeaders.AUTHORIZATION, bearer(token))), 401);
@@ -184,7 +184,7 @@ class SecurityFunctionalTest {
     //  And Content-Type is "application/problem+json" with "status":403
     @Test
     @DisplayName("should return 403 problem+json when a USER calls POST /customers")
-    void ac3_userPost_returns403() throws Exception {
+    void userPost_returns403() throws Exception {
         expectProblem(mockMvc.perform(jsonRequest(post("/customers"), CREATE_BODY).with(withRole("USER"))), 403);
     }
 
@@ -194,7 +194,7 @@ class SecurityFunctionalTest {
     // Then the response is 403 problem+json ("status":403)
     @Test
     @DisplayName("should return 403 problem+json when a USER calls PUT /customers/{id}")
-    void ac3_userPut_returns403() throws Exception {
+    void userPut_returns403() throws Exception {
         expectProblem(mockMvc.perform(jsonRequest(put("/customers/1"), UPDATE_BODY).with(withRole("USER"))), 403);
     }
 
@@ -204,7 +204,7 @@ class SecurityFunctionalTest {
     // Then the response is 403 problem+json ("status":403)
     @Test
     @DisplayName("should return 403 problem+json when a USER calls DELETE /customers/{id}")
-    void ac3_userDelete_returns403() throws Exception {
+    void userDelete_returns403() throws Exception {
         expectProblem(mockMvc.perform(delete("/customers/1").with(withRole("USER"))), 403);
     }
 
@@ -214,7 +214,7 @@ class SecurityFunctionalTest {
     // Then no response is 401 or 403
     @Test
     @DisplayName("should pass authorization when a USER calls GET endpoints under /customers")
-    void ac4_userGet_isAuthorized() throws Exception {
+    void userGet_isAuthorized() throws Exception {
         List<String> readPaths = List.of("/customers", "/customers/1", "/customers/search?name=ana", "/customers/1/score");
 
         for (String path : readPaths) {
@@ -230,7 +230,7 @@ class SecurityFunctionalTest {
     // Then no response is 401 or 403
     @Test
     @DisplayName("should pass authorization when an ADMIN calls GET, POST, PUT or DELETE under /customers")
-    void ac5_adminAllMethods_isAuthorized() throws Exception {
+    void adminAllMethods_isAuthorized() throws Exception {
         assertThat(statusOf(get("/customers").with(withRole("ADMIN")))).as("GET").isNotIn(401, 403);
         assertThat(statusOf(jsonRequest(post("/customers"), ADMIN_CREATE_BODY).with(withRole("ADMIN"))))
                 .as("POST").isNotIn(401, 403);
@@ -245,7 +245,7 @@ class SecurityFunctionalTest {
     // Then none of the responses is 401 or 403 (health returns 200; api-docs returns 200)
     @Test
     @DisplayName("should allow access without a token when health, api-docs or swagger-ui is called")
-    void ac6_publicEndpoints_allowAnonymous() throws Exception {
+    void publicEndpoints_allowAnonymous() throws Exception {
         mockMvc.perform(get("/actuator/health")).andExpect(status().isOk());
         mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk());
         assertThat(statusOf(get("/swagger-ui/index.html"))).isNotIn(401, 403);
@@ -257,7 +257,7 @@ class SecurityFunctionalTest {
     // Then the response is 403 problem+json (authenticated but no role)
     @Test
     @DisplayName("should return 403 when the JWT has no realm_access claim")
-    void edge_tokenWithoutRealmAccess_returns403() throws Exception {
+    void tokenWithoutRealmAccess_returns403() throws Exception {
         String token = signedToken(TRUSTED_KEY, claims -> claims.claims(all -> all.remove("realm_access")));
 
         expectProblem(mockMvc.perform(get("/customers").header(HttpHeaders.AUTHORIZATION, bearer(token))), 403);
@@ -269,7 +269,7 @@ class SecurityFunctionalTest {
     // Then both responses are 403 (only exact "USER"/"ADMIN" grant access)
     @Test
     @DisplayName("should return 403 when role names have the wrong casing")
-    void edge_wrongRoleCasing_returns403() throws Exception {
+    void wrongRoleCasing_returns403() throws Exception {
         String token = signedToken(TRUSTED_KEY,
                 claims -> claims.claim("realm_access", Map.of("roles", List.of("admin", "user"))));
 
@@ -285,7 +285,7 @@ class SecurityFunctionalTest {
     // Then the response is 401 problem+json (not 404)
     @Test
     @DisplayName("should return 401 instead of 404 when an unknown path is called without a token")
-    void edge_unknownPathNoToken_returns401() throws Exception {
+    void unknownPathNoToken_returns401() throws Exception {
         expectProblem(mockMvc.perform(get("/does-not-exist")), 401);
     }
 

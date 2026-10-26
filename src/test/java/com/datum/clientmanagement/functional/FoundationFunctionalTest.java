@@ -63,6 +63,7 @@ class FoundationFunctionalTest {
     @ActiveProfiles("test")
     @Import(TestcontainersConfiguration.class)
     @Testcontainers(disabledWithoutDocker = true)
+    @SuppressWarnings({"SqlResolve", "SqlNoDataSourceInspection"}) // IDE has no database; the SQL runs against Testcontainers Postgres
     class RunningApplication {
 
         @Autowired
@@ -85,7 +86,7 @@ class FoundationFunctionalTest {
         //  And the running JVM feature version is >= 21 (Runtime.version().feature())
         @Test
         @DisplayName("should load the application context when started against a Testcontainers Postgres")
-        void ac1_contextLoads_againstTestcontainersPostgres() throws SQLException {
+        void contextLoads_againstTestcontainersPostgres() throws SQLException {
             try (Connection connection = dataSource.getConnection()) {
                 assertThat(connection.getMetaData().getURL()).startsWith("jdbc:postgresql://");
             }
@@ -100,7 +101,7 @@ class FoundationFunctionalTest {
         //  And body.components contains keys "db" and "rabbit", each with "status":"UP"
         @Test
         @DisplayName("should return 200 UP with db and rabbit components when health is called without a token")
-        void ac3_actuatorHealth_returnsUpWithDbAndRabbit() throws Exception {
+        void actuatorHealth_returnsUpWithDbAndRabbit() throws Exception {
             mockMvc.perform(get("/actuator/health"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("UP"))
@@ -120,7 +121,7 @@ class FoundationFunctionalTest {
         //  And processed_events has event_id (uuid, PK), event_type, processed_at
         @Test
         @DisplayName("should create customers, outbox_events and processed_events tables when Flyway runs V1__init")
-        void ac4_flywayV1_createsSchema() {
+        void flywayV1_createsSchema() {
             Map<String, Object> migration = jdbcTemplate.queryForMap(
                     "SELECT description, success FROM flyway_schema_history WHERE version = '1'");
             assertThat(migration).containsEntry("description", "init").containsEntry("success", true);
@@ -150,7 +151,7 @@ class FoundationFunctionalTest {
         // Then its value is exactly "validate"
         @Test
         @DisplayName("should run Hibernate with ddl-auto=validate when the app starts")
-        void ac4_hibernateDdlAuto_isValidate() {
+        void hibernateDdlAuto_isValidate() {
             assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
         }
 
@@ -187,8 +188,8 @@ class FoundationFunctionalTest {
     //  And app.depends_on lists those 4 services, each with "condition: service_healthy"
     @Test
     @DisplayName("should define the five services with healthchecks and healthy-dependency ordering when docker-compose.yml is read")
-    void ac2_dockerCompose_definesServicesHealthchecksAndDependsOn() throws IOException {
-        Map<String, Object> services = childMap(readYaml(COMPOSE_FILE), "services");
+    void dockerCompose_definesServicesHealthchecksAndDependsOn() throws IOException {
+        Map<String, Object> services = childMap(readComposeFile(), "services");
 
         assertThat(services).containsKeys("app", "postgres", "rabbitmq", "keycloak", "wiremock");
         for (String dependency : DEPENDENCY_SERVICES) {
@@ -216,7 +217,7 @@ class FoundationFunctionalTest {
     //  And a client with publicClient=true and directAccessGrantsEnabled=true exists
     @Test
     @DisplayName("should define realm client-management with USER/ADMIN roles, users and a public client when the realm file is read")
-    void ac6_keycloakRealm_isDefinedForImport() throws IOException {
+    void keycloakRealm_isDefinedForImport() throws IOException {
         JsonNode realm = JsonMapper.builder().build().readTree(Files.readString(REALM_FILE));
 
         assertThat(realm.path("realm").asString()).isEqualTo("client-management");
@@ -233,8 +234,8 @@ class FoundationFunctionalTest {
                 });
     }
 
-    private static Map<String, Object> readYaml(Path file) throws IOException {
-        try (Reader reader = Files.newBufferedReader(file)) {
+    private static Map<String, Object> readComposeFile() throws IOException {
+        try (Reader reader = Files.newBufferedReader(COMPOSE_FILE)) {
             return new Yaml().load(reader);
         }
     }
