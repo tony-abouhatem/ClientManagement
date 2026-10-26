@@ -22,7 +22,7 @@ class PerformanceNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should keep list and search p95 under 300 ms when there are 10k customers")
-    void nfr15_listAndSearchP95Under300ms() { }
+    void listAndSearchP95Under300ms() { }
 
     // NFR-15:performance
     // Given 10 000 customers seeded
@@ -31,5 +31,5 @@ class PerformanceNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should keep CRUD p95 under 300 ms when there are 10k customers")
-    void nfr15_crudP95Under300ms() { }
+    void crudP95Under300ms() { }
 }

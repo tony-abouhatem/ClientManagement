@@ -34,13 +34,17 @@ Read first: `docs/PRODUCT.md` (scope, rules, NFRs), `docs/ARCHITECTURE.md` (desi
 ## Tests
 - JUnit 5, AssertJ, Spring Boot Test, `spring-security-test` (`jwt()` post-processor for roles), Testcontainers (Postgres, RabbitMQ), WireMock.
 - **Unit tests**: next to the package they test, e.g. `src/test/java/com/datum/clientmanagement/customer/CpfValidatorTest.java`.
-- **Functional (acceptance) tests**: `src/test/java/com/datum/clientmanagement/functional/`. One class per ticket/feature, with methods named after the ACs (e.g. `ac1_createCustomer_returns201`).
+- **Functional (acceptance) tests**: `src/test/java/com/datum/clientmanagement/functional/`. One class per ticket/feature.
 - **Non-functional tests**: `src/test/java/com/datum/clientmanagement/nonfunctional/` (timeouts, circuit breaker, idempotency, security, startup without Rabbit). Reference the NFR ids from PRODUCT.md.
+- **Test names**: the method name describes the behaviour only (`createCustomer_returns201`). Don't put AC/NFR ids or `edge` in method names. Link each test to its source in a comment above it (`// AC-1 (ticket 03)`, `// NFR-9`) and describe it in `@DisplayName`.
 - **Pending convention**: test-writer creates skeletons as
   ```java
+  // AC-1 (ticket 03)
+  // Given … When … Then …
   @Test
   @Disabled("pending: implementer")
-  void ac1_createCustomer_returns201() { }
+  @DisplayName("should create the customer and return 201")
+  void createCustomer_returns201() { }
   ```
   The implementer removes `@Disabled`, writes the body, and makes it pass. Never delete a pending test without saying so.
 - Manual checks, not automated: the JaCoCo report is generated, all compose containers start, and NFR-11 startup time (ticket 01 AC-1/AC-2). Don't write tests for these.

@@ -24,7 +24,7 @@ class ApiContractNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return an RFC 7807 ProblemDetail with all standard fields for every error status")
-    void nfr13_everyError_isProblemDetail() { }
+    void everyError_isProblemDetail() { }
 
     // NFR-13:api
     // Given an ADMIN
@@ -34,7 +34,7 @@ class ApiContractNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should include errors[] with field and message when validation fails")
-    void nfr13_validationErrors_includeFieldAndMessage() { }
+    void validationErrors_includeFieldAndMessage() { }
 
     // NFR-14:api — no clamping
     // Given 30 customers
@@ -45,7 +45,7 @@ class ApiContractNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should reject an oversized page with a 400 ProblemDetail instead of clamping it")
-    void nfr14_oversizedPage_isRejectedNotClamped() { }
+    void oversizedPage_isRejectedNotClamped() { }
 
     // NFR-14:api
     // Given 30 customers
@@ -54,7 +54,7 @@ class ApiContractNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should report both page and size in errors[] when both are out of range")
-    void nfr14_invalidPageAndSize_reportBothFields() { }
+    void invalidPageAndSize_reportBothFields() { }
 
     // NFR-14:api
     // Given 30 customers
@@ -63,7 +63,7 @@ class ApiContractNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should default to page 0 and size 20 on list when paging parameters are omitted")
-    void nfr14_listDefaultsPage0Size20() { }
+    void listDefaultsPage0Size20() { }
 
     // NFR-14:api
     // Given 30 customers matching "a"
@@ -72,7 +72,7 @@ class ApiContractNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should default the page size to 20 on search when size is omitted")
-    void nfr14_searchDefaultSize20() { }
+    void searchDefaultSize20() { }
 
     // NFR-14:api
     // Given any data
@@ -82,5 +82,5 @@ class ApiContractNfrTest {
     @Test
     @Disabled("pending: implementer")
     @DisplayName("should return 400 when status has an invalid value such as lowercase or empty")
-    void nfr14_invalidStatusVariants_return400() { }
+    void invalidStatusVariants_return400() { }
 }
