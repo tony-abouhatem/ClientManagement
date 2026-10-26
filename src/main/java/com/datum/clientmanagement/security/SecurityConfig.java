@@ -2,30 +2,55 @@ package com.datum.clientmanagement.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 
 /**
- * Baseline resource-server setup: health is public so orchestrators can probe it, everything else needs a JWT.
- * Role rules and ProblemDetail 401/403 handling are added by ticket 02.
+ * Stateless OAuth2 resource server (NFR-1, NFR-2): only health and the API docs are public, USER reads customers,
+ * ADMIN reads and writes them, and every 401/403 is a ProblemDetail.
  */
 @Configuration(proxyBeanMethods = false)
 public class SecurityConfig {
 
-    private static final String HEALTH_ENDPOINTS = "/actuator/health/**";
+    static final String ROLE_USER = "USER";
+    static final String ROLE_ADMIN = "ADMIN";
+
+    private static final String[] PUBLIC_ENDPOINTS = {"/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**"};
+    private static final String CUSTOMER_ENDPOINTS = "/customers/**";
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationConverter jwtAuthenticationConverter) {
+        ProblemDetailResponseWriter problemWriter = new ProblemDetailResponseWriter();
+        AuthenticationEntryPoint entryPoint = new ProblemDetailAuthenticationEntryPoint(problemWriter);
+        AccessDeniedHandler accessDeniedHandler = new ProblemDetailAccessDeniedHandler(problemWriter);
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(requests -> requests
-                        .requestMatchers(HEALTH_ENDPOINTS).permitAll()
+                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        .requestMatchers(HttpMethod.GET, CUSTOMER_ENDPOINTS).hasAnyRole(ROLE_USER, ROLE_ADMIN)
+                        .requestMatchers(CUSTOMER_ENDPOINTS).hasRole(ROLE_ADMIN)
                         .anyRequest().authenticated())
-                .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(entryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
+                .oauth2ResourceServer(resourceServer -> resourceServer
+                        .authenticationEntryPoint(entryPoint)
+                        .accessDeniedHandler(accessDeniedHandler)
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
                 .build();
+    }
+
+    @Bean
+    JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(new KeycloakRealmRoleConverter());
+        return converter;
     }
 }
