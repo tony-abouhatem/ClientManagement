@@ -65,9 +65,9 @@ Page response shape: `{ "content": [...], "page": { "size", "number", "totalElem
 
 ## Auth
 - Spring Security OAuth2 Resource Server. JWTs are validated against `spring.security.oauth2.resourceserver.jwt.issuer-uri`, which points at the Keycloak realm.
-- Keycloak realm `client-management` is imported from a JSON file under `docker/keycloak/`. It contains realm roles `USER` and `ADMIN`, users `user/user` (USER) and `admin/admin` (USER + ADMIN), and a public client with direct-access grants. The client id is TBD (proposed `client-management-cli`).
+- Keycloak realm `client-management` is imported from a JSON file under `docker/keycloak/`. It contains realm roles `USER` and `ADMIN`, users `user/user` (USER) and `admin/admin` (USER + ADMIN), and a public client with direct-access grants. The client id is `client-management-cli` (file `docker/keycloak/client-management-realm.json`).
 - A custom `JwtAuthenticationConverter` maps `realm_access.roles` to `ROLE_<role>`.
-- Issuer mismatch between the host (`localhost`) and the compose network (`keycloak`): set `KC_HOSTNAME` so tokens obtained from the host validate inside compose. The exact approach is TBD in ticket 01/02.
+- Issuer mismatch between the host (`localhost`) and the compose network (`keycloak`): Keycloak runs with `KC_HOSTNAME=http://localhost:8081` (plus `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true`), so every token carries `iss=http://localhost:8081/realms/client-management`, whether it was requested from the host or from inside compose. The app validates that issuer (`ISSUER_URI`) but fetches signing keys through `JWK_SET_URI`, which inside compose is `http://keycloak:8080/realms/client-management/protocol/openid-connect/certs`. Spring Boot uses the JWK set URI for keys and still checks the `iss` claim against `issuer-uri`, so no OIDC discovery call to `localhost` is made from inside the container.
 - 401 and 403 responses are ProblemDetail, produced by a custom entry point and access-denied handler.
 
 ## External integration: Score
