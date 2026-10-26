@@ -2,10 +2,10 @@
 
 Read first: `docs/PRODUCT.md` (scope, rules, NFRs), `docs/ARCHITECTURE.md` (design, ADRs), `docs/backlog/` (tickets).
 
-## Workflow (local only)
+## Workflow
 - No GitHub issues and no CI. Tickets are markdown files in `docs/backlog/NN-slug.md`.
 - Flow: ticket file → test-writer adds failing/pending tests → implementer makes them pass → human review and commit.
-- The git repo is local (branch `main`). **Never commit or push** unless the user asks.
+- Remote: private GitHub repo `tony-abouhatem/ClientManagement` (`origin`). Default branch `main`; work happens on feature branches (e.g. `feature/01_new-project-setup`) and is merged into `main` through pull requests. **Never commit or push** unless the user asks.
 
 ## Commands (run from repo root; on Windows use `mvnw.cmd` or `./mvnw` in Git Bash)
 | Task | Command |
@@ -56,7 +56,7 @@ Read first: `docs/PRODUCT.md` (scope, rules, NFRs), `docs/ARCHITECTURE.md` (desi
 
 ## Never do
 - Never change the schema outside a new Flyway migration. Never edit an applied `V*` file. Never set `ddl-auto` to anything other than `validate`.
-- Never commit, push, or create remote repos/issues without the user's explicit request.
+- Never commit, push, open PRs, or create repos/issues without the user's explicit request.
 - Never weaken security rules to make tests pass (use `jwt()` with the right roles).
 - Never put secrets in code. Dev-only defaults live in `application.yaml` and `docker-compose.yml`.
 - Never call the real network in tests. Use WireMock and Testcontainers.

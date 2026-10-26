@@ -1,3 +1,65 @@
+# Defaults target the local stack (docker compose dependencies, app on the host).
+# Every URL, credential, timeout and interval is overridable through the env var in the placeholder.
 spring:
   application:
-    name: ClientManagement
+    name: client-management
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/clientmanagement}
+    username: ${DB_USERNAME:clientmanagement}
+    password: ${DB_PASSWORD:clientmanagement}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema (ADR-2); Hibernate only checks the mapping against it.
+      ddl-auto: validate
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Expected "iss" claim. Keycloak is started with KC_HOSTNAME=http://localhost:8081, so tokens
+          # fetched from the host carry this issuer even when the app runs inside compose.
+          issuer-uri: ${ISSUER_URI:http://localhost:8081/realms/client-management}
+          # Keys are fetched from here; inside compose it points at http://keycloak:8080 (see docker-compose.yml).
+          jwk-set-uri: ${JWK_SET_URI:http://localhost:8081/realms/client-management/protocol/openid-connect/certs}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-components: always
+
+app:
+  score:
+    base-url: ${SCORE_BASE_URL:http://localhost:8089}
+    connect-timeout: ${SCORE_CONNECT_TIMEOUT:1s}
+    read-timeout: ${SCORE_READ_TIMEOUT:2s}
+  messaging:
+    confirm-timeout: ${RABBITMQ_CONFIRM_TIMEOUT:5s}
+  outbox:
+    relay-interval: ${OUTBOX_RELAY_INTERVAL:5s}
+
+resilience4j:
+  retry:
+    instances:
+      score:
+        max-attempts: ${SCORE_RETRY_MAX_ATTEMPTS:2}
+        wait-duration: ${SCORE_RETRY_WAIT_DURATION:200ms}
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: ${SCORE_RETRY_BACKOFF_MULTIPLIER:2}
+  circuitbreaker:
+    instances:
+      score:
+        sliding-window-size: ${SCORE_CB_SLIDING_WINDOW_SIZE:10}
+        failure-rate-threshold: ${SCORE_CB_FAILURE_RATE_THRESHOLD:50}
+        wait-duration-in-open-state: ${SCORE_CB_WAIT_DURATION_IN_OPEN_STATE:10s}
