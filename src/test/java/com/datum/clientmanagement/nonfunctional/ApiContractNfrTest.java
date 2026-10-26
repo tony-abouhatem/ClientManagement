@@ -1,5 +1,5 @@
 /*
- * NFR-13, NFR-14 (docs/PRODUCT.md); tickets docs/backlog/02, 03, 04, 05.
+ * NFR-13, NFR-14 (docs/PRODUCT.md); tickets 02, 03, 04, 05 (GitHub issues #3, #4, #5, #6).
  *
  * Interfaces under test: @RestControllerAdvice in com.datum.clientmanagement.common.error, all /customers endpoints.
  * ProblemDetail fields: type, title, status, detail, instance [, errors[{field, message}]].

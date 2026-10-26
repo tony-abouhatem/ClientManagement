@@ -1,5 +1,5 @@
 /*
- * NFR-10 (docs/PRODUCT.md); tickets docs/backlog/01-foundation-and-local-stack.md and 06-customer-created-event-outbox.md.
+ * NFR-10 (docs/PRODUCT.md); tickets 01 and 06 (GitHub issues #2, #7).
  *
  * Interfaces under test: app startup, /actuator/health, customer CRUD endpoints.
  * Testcontainers Postgres up; RabbitMQ and/or Score (WireMock) deliberately absent (properties point at closed ports).

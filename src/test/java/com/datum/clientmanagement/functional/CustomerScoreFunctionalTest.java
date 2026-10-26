@@ -1,5 +1,5 @@
 /*
- * Ticket: docs/backlog/05-score-integration.md
+ * Ticket: 05 (GitHub issue #6)
  *
  * Interfaces under test (do not exist yet):
  *   - GET /customers/{id}/score -> 200 ScoreResponse {customerId, cpf, score, classification}

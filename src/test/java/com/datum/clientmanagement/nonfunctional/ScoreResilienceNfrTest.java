@@ -1,5 +1,5 @@
 /*
- * NFR-4, NFR-5, NFR-6 (docs/PRODUCT.md); ticket docs/backlog/05-score-integration.md.
+ * NFR-4, NFR-5, NFR-6 (docs/PRODUCT.md); ticket 05 (GitHub issue #6).
  *
  * Interfaces under test (do not exist yet): GET /customers/{id}/score, com.datum.clientmanagement.score.ScoreClient
  * (RestClient + Resilience4j retry "score" and circuit breaker "score"), typed Score @ConfigurationProperties.
