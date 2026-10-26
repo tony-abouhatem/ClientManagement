@@ -1,6 +1,6 @@
 /*
  * NFR-12 (docs/PRODUCT.md) plus data-integrity constraints from docs/ARCHITECTURE.md;
- * tickets docs/backlog/01, 03, 06, 07.
+ * tickets 01, 03, 06, 07 (GitHub issues #2, #4, #7, #8).
  *
  * Interfaces under test: Flyway schema (V1__init.sql) on Testcontainers Postgres, PUT /customers/{id}.
  * Scenarios here act directly on the database (JdbcTemplate) to prove constraints exist at DB level,

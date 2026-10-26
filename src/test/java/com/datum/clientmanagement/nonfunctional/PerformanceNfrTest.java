@@ -1,5 +1,5 @@
 /*
- * NFR-15 (docs/PRODUCT.md); tickets docs/backlog/03-customer-crud-validation-errors.md and 04-list-search-filter.md.
+ * NFR-15 (docs/PRODUCT.md); tickets 03 and 04 (GitHub issues #4, #5).
  *
  * PRODUCT.md says this target is "measured informally; no load-test tooling required". These scenarios are a
  * lightweight in-JVM check (sequential requests, p95 computed in the test). Suggested: tag them so they can be

@@ -1,5 +1,5 @@
 /*
- * Ticket: docs/backlog/04-list-search-filter.md
+ * Ticket: 04 (GitHub issue #5)
  *
  * Interfaces under test (do not exist yet):
  *   - GET /customers?status=&name=&page=&size=&sort=

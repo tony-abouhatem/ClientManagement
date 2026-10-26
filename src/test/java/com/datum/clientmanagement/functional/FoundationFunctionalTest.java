@@ -1,5 +1,5 @@
 /*
- * Ticket: docs/backlog/01-foundation-and-local-stack.md
+ * Ticket: 01 (GitHub issue #2)
  *
  * Interfaces under test:
  *   - Spring context booted with the "test" profile against a Testcontainers PostgreSQL 16 (+ RabbitMQ)

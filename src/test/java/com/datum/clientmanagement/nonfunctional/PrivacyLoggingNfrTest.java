@@ -1,5 +1,5 @@
 /*
- * NFR-3 (docs/PRODUCT.md); tickets docs/backlog/03-customer-crud-validation-errors.md and 05-score-integration.md.
+ * NFR-3 (docs/PRODUCT.md); tickets 03 and 05 (GitHub issues #4, #6).
  *
  * Interfaces under test: application log output (capture with an in-memory appender / OutputCaptureExtension).
  * Log level for com.datum.clientmanagement set to DEBUG during these tests so every log statement is exercised.
