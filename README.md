@@ -2,7 +2,7 @@
 
 Microsserviço de gerenciamento de clientes: CRUD REST, consulta de score externo, segurança OAuth2/JWT (Keycloak) e eventos via RabbitMQ.
 
-> **Status:** em desenvolvimento. Este README descreve o comportamento planejado. Itens marcados **TBD** serão confirmados na implementação (ver `docs/backlog/`).
+> **Status:** em desenvolvimento. Este README descreve o comportamento planejado. Itens marcados **TBD** serão confirmados na implementação (ver as issues no GitHub).
 
 ## Funcionalidades
 - Cadastro, alteração, exclusão e consulta de clientes (`/customers`).
@@ -161,14 +161,14 @@ src/main/resources/db/migration/            migrações Flyway
 src/test/java/com/datum/clientmanagement/   unitários, functional/, nonfunctional/
 docker/                                     realm Keycloak, stubs WireMock
 postman/                                    collection Postman
-docs/                                       PRODUCT, ARCHITECTURE, backlog
+docs/                                       PRODUCT, ARCHITECTURE
 ```
 
 ## Deploy
 Apenas execução local via Docker Compose. Não há ambientes de staging/produção.
 
 ## Fluxo de contribuição
-1. Ticket em `docs/backlog/NN-*.md`, com critérios de aceite.
+1. Ticket como issue no GitHub (label `ticket`), com critérios de aceite.
 2. Testes escritos primeiro (pendentes com `@Disabled("pending: implementer")`).
 3. Implementação até os testes passarem (`./mvnw verify`).
 4. Revisão e commit local. A entrega será feita posteriormente em um repositório Git acessível aos avaliadores.
