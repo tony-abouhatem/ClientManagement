@@ -1,11 +1,15 @@
 # CLAUDE.md — agent guide for ClientManagement
 
-Read first: `docs/PRODUCT.md` (scope, rules, NFRs), `docs/ARCHITECTURE.md` (design, ADRs), `docs/backlog/` (tickets).
+Read first: `docs/PRODUCT.md` (scope, rules, NFRs), `docs/ARCHITECTURE.md` (design, ADRs); tickets are GitHub issues (label `ticket`, see the Backlog section of PRODUCT.md).
 
 ## Workflow
-- No GitHub issues and no CI. Tickets are markdown files in `docs/backlog/NN-slug.md`.
-- Flow: ticket file → test-writer adds failing/pending tests → implementer makes them pass → human review and commit.
-- Remote: private GitHub repo `tony-abouhatem/ClientManagement` (`origin`). Default branch `main`; work happens on feature branches (e.g. `feature/01_new-project-setup`) and is merged into `main` through pull requests. **Never commit or push** unless the user asks.
+- Tickets live only as GitHub issues (label `ticket`) in `tony-abouhatem/ClientManagement`; ticket NN is issue #(NN+1). Read them with `gh issue view <n>`.
+- Flow: ticket issue → ticket-triage → test-writer adds pending tests → human review and commit → implementer makes them pass → human review, commit, push and PR.
+- Remote: private GitHub repo `tony-abouhatem/ClientManagement` (`origin`). Default branch `main`.
+- Branches: `feature/NN_slug` from `main`, where NN is the ticket number (e.g. `feature/02_security-resource-server`). Merged into `main` through pull requests with `Closes #<issue>`.
+- **Agents never commit, push or open PRs** unless the user asks. The implementer leaves its changes uncommitted with a suggested commit message.
+- **No CI.** The merge gate is a local `./mvnw verify` with Docker running. There are no PR checks to wait for or fix.
+- Acceptance criteria and NFRs marked *(manual check)* get no automated tests; the implementer runs them by hand (Docker is available) and reports the results.
 
 ## Commands (run from repo root; on Windows use `mvnw.cmd` or `./mvnw` in Git Bash)
 | Task | Command |
@@ -25,7 +29,7 @@ Read first: `docs/PRODUCT.md` (scope, rules, NFRs), `docs/ARCHITECTURE.md` (desi
 - `src/main/resources/db/migration/V<n>__<desc>.sql`: Flyway, the only place schema changes happen.
 - `docker/keycloak/` (realm JSON), `docker/wiremock/mappings/` and `__files/`: compose assets.
 - `postman/`: Postman collection and environment.
-- `docs/`: PRODUCT, ARCHITECTURE, backlog.
+- `docs/`: PRODUCT, ARCHITECTURE.
 
 ## Tests
 - JUnit 5, AssertJ, Spring Boot Test, `spring-security-test` (`jwt()` post-processor for roles), Testcontainers (Postgres, RabbitMQ), WireMock.

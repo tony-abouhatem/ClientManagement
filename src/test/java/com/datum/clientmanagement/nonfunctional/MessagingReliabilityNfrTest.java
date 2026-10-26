@@ -1,6 +1,5 @@
 /*
- * NFR-7, NFR-8, NFR-9 (docs/PRODUCT.md); tickets docs/backlog/06-customer-created-event-outbox.md and
- * 07-status-change-consumer.md.
+ * NFR-7, NFR-8, NFR-9 (docs/PRODUCT.md); tickets 06 and 07 (GitHub issues #7, #8).
  *
  * Interfaces under test (do not exist yet): CUSTOMER_CREATED publisher + outbox relay, CUSTOMER_STATUS_CHANGE
  * listener, queues "customer.created", "customer.status-change", "customer.status-change.dlq".

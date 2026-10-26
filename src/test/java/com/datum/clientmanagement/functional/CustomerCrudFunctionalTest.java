@@ -1,5 +1,5 @@
 /*
- * Ticket: docs/backlog/03-customer-crud-validation-errors.md
+ * Ticket: 03 (GitHub issue #4)
  *
  * Interfaces under test (do not exist yet):
  *   - POST /customers, PUT /customers/{id}, DELETE /customers/{id}, GET /customers/{id}

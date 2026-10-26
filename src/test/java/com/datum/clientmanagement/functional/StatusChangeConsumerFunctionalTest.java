@@ -1,5 +1,5 @@
 /*
- * Ticket: docs/backlog/07-status-change-consumer.md
+ * Ticket: 07 (GitHub issue #8)
  *
  * Interfaces under test (do not exist yet):
  *   - AMQP listener on queue "customer.status-change" (bound to exchange "customer.events",

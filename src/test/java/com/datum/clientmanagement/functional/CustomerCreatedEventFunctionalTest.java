@@ -1,5 +1,5 @@
 /*
- * Ticket: docs/backlog/06-customer-created-event-outbox.md
+ * Ticket: 06 (GitHub issue #7)
  *
  * Interfaces under test (do not exist yet):
  *   - POST /customers (ADMIN) triggering CUSTOMER_CREATED after commit
