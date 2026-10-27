@@ -34,3 +34,5 @@ build/
 
 ### Local environment overrides ###
 .env
+.gitattributes
+.claude/**

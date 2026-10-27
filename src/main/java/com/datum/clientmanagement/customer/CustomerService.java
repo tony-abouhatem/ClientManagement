@@ -1,29 +1,34 @@
 package com.datum.clientmanagement.customer;
 
-import com.datum.clientmanagement.common.error.CpfChangeNotAllowedException;
-import com.datum.clientmanagement.common.error.CustomerNotFoundException;
-import com.datum.clientmanagement.common.error.CustomerVersionConflictException;
-import com.datum.clientmanagement.common.error.DuplicateCpfException;
 import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 /**
- * Customer use cases. The database is the final guard for CPF uniqueness and optimistic locking, so races that
- * slip past the up-front checks still end in the same domain exceptions (409) instead of a 500.
+ * Customer use cases. Failures are thrown as {@link ResponseStatusException}s whose reason is a client-safe
+ * message (never the CPF, NFR-3). The database is the final guard for CPF uniqueness and optimistic locking, so
+ * races that slip past the up-front checks still end in the same 409 instead of a 500.
  */
 @Service
 public class CustomerService {
 
     static final String CPF_UNIQUE_CONSTRAINT = "uk_customers_cpf";
+    static final String DUPLICATE_CPF_MESSAGE = "A customer with this CPF already exists.";
+    static final String VERSION_CONFLICT_MESSAGE =
+            "Customer %d was modified by another request. Fetch it again and retry with the current version.";
+    static final String CPF_CHANGE_MESSAGE = "The CPF of an existing customer cannot be changed.";
 
     private static final Logger log = LoggerFactory.getLogger(CustomerService.class);
 
@@ -39,7 +44,7 @@ public class CustomerService {
     public Customer create(CustomerRequests.Create request) {
         if (repository.existsByCpf(request.cpf())) {
             logDuplicateCpf(request.cpf());
-            throw new DuplicateCpfException();
+            throw new ResponseStatusException(HttpStatus.CONFLICT, DUPLICATE_CPF_MESSAGE);
         }
         Customer customer = Customer.create(request.name(), request.cpf(), request.email(), request.statusOrDefault(),
                 now());
@@ -50,7 +55,7 @@ public class CustomerService {
         } catch (DataIntegrityViolationException exception) {
             if (isCpfUniqueViolation(exception)) {
                 logDuplicateCpf(request.cpf());
-                throw new DuplicateCpfException(exception);
+                throw new ResponseStatusException(HttpStatus.CONFLICT, DUPLICATE_CPF_MESSAGE, exception);
             }
             throw exception;
         }
@@ -58,24 +63,30 @@ public class CustomerService {
 
     @Transactional(readOnly = true)
     public Customer findById(long id) {
-        return repository.findById(id).orElseThrow(() -> new CustomerNotFoundException(id));
+        return repository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                "No customer exists with id " + id + "."));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Customer> find(CustomerFilter filter, Pageable pageable) {
+        return repository.findAll(CustomerSpecifications.matching(filter), pageable);
     }
 
     @Transactional
     public Customer update(long id, CustomerRequests.Update request) {
         Customer customer = findById(id);
         if (!customer.getVersion().equals(request.version())) {
-            throw new CustomerVersionConflictException(id);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, VERSION_CONFLICT_MESSAGE.formatted(id));
         }
         if (request.cpf() != null && !request.cpf().equals(customer.getCpf())) {
-            throw new CpfChangeNotAllowedException();
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, CPF_CHANGE_MESSAGE);
         }
         customer.update(request.name(), request.email(), request.customerStatus(), now());
         try {
             // Flush now so a concurrent update that already bumped the version surfaces here, not at commit.
             repository.flush();
         } catch (OptimisticLockingFailureException exception) {
-            throw new CustomerVersionConflictException(id, exception);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, VERSION_CONFLICT_MESSAGE.formatted(id), exception);
         }
         log.info("Customer {} updated to version {}", id, customer.getVersion());
         return customer;

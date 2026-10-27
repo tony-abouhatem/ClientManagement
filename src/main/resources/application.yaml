@@ -48,6 +48,10 @@ app:
     confirm-timeout: ${RABBITMQ_CONFIRM_TIMEOUT:5s}
   outbox:
     relay-interval: ${OUTBOX_RELAY_INTERVAL:5s}
+  pagination:
+    # Used when a list request omits page/size; default-size must be within 1..100 (NFR-14).
+    default-page: ${PAGINATION_DEFAULT_PAGE:0}
+    default-size: ${PAGINATION_DEFAULT_SIZE:20}
 
 resilience4j:
   retry:

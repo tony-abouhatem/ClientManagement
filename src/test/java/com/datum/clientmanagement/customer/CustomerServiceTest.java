@@ -1,25 +1,33 @@
 package com.datum.clientmanagement.customer;
 
-import com.datum.clientmanagement.common.error.CpfChangeNotAllowedException;
-import com.datum.clientmanagement.common.error.CustomerNotFoundException;
-import com.datum.clientmanagement.common.error.CustomerVersionConflictException;
-import com.datum.clientmanagement.common.error.DuplicateCpfException;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -61,9 +69,9 @@ class CustomerServiceTest {
     void create_existingCpf_throwsDuplicateWithoutSaving() {
         when(repository.existsByCpf(CPF)).thenReturn(true);
 
-        assertThatThrownBy(() -> service.create(createRequest()))
-                .isInstanceOf(DuplicateCpfException.class)
-                .message().doesNotContain(CPF);
+        assertResponseStatus(() -> service.create(createRequest()), HttpStatus.CONFLICT,
+                CustomerService.DUPLICATE_CPF_MESSAGE);
+        assertThat(CustomerService.DUPLICATE_CPF_MESSAGE).doesNotContain(CPF);
         verify(repository, never()).saveAndFlush(any());
     }
 
@@ -71,7 +79,8 @@ class CustomerServiceTest {
     void create_cpfUniqueViolationFromRace_throwsDuplicate() {
         when(repository.saveAndFlush(any(Customer.class))).thenThrow(integrityViolation(CustomerService.CPF_UNIQUE_CONSTRAINT));
 
-        assertThatThrownBy(() -> service.create(createRequest())).isInstanceOf(DuplicateCpfException.class);
+        assertResponseStatus(() -> service.create(createRequest()), HttpStatus.CONFLICT,
+                CustomerService.DUPLICATE_CPF_MESSAGE);
     }
 
     @Test
@@ -86,7 +95,8 @@ class CustomerServiceTest {
     void findById_unknownId_throwsNotFound() {
         when(repository.findById(CUSTOMER_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.findById(CUSTOMER_ID)).isInstanceOf(CustomerNotFoundException.class);
+        assertResponseStatus(() -> service.findById(CUSTOMER_ID), HttpStatus.NOT_FOUND,
+                "No customer exists with id " + CUSTOMER_ID + ".");
     }
 
     @Test
@@ -111,8 +121,8 @@ class CustomerServiceTest {
     void update_staleVersion_throwsConflictAndChangesNothing() {
         Customer stored = storedCustomer(1L);
 
-        assertThatThrownBy(() -> service.update(CUSTOMER_ID, updateRequest(0L, null)))
-                .isInstanceOf(CustomerVersionConflictException.class);
+        assertResponseStatus(() -> service.update(CUSTOMER_ID, updateRequest(0L, null)), HttpStatus.CONFLICT,
+                CustomerService.VERSION_CONFLICT_MESSAGE.formatted(CUSTOMER_ID));
         assertThat(stored.getName()).isEqualTo("Ana Souza");
         verify(repository, never()).flush();
     }
@@ -121,8 +131,8 @@ class CustomerServiceTest {
     void update_differentCpf_throwsCpfChangeAndChangesNothing() {
         Customer stored = storedCustomer(0L);
 
-        assertThatThrownBy(() -> service.update(CUSTOMER_ID, updateRequest(0L, "11144477735")))
-                .isInstanceOf(CpfChangeNotAllowedException.class);
+        assertResponseStatus(() -> service.update(CUSTOMER_ID, updateRequest(0L, "11144477735")),
+                HttpStatus.UNPROCESSABLE_CONTENT, CustomerService.CPF_CHANGE_MESSAGE);
         assertThat(stored.getName()).isEqualTo("Ana Souza");
         verify(repository, never()).flush();
     }
@@ -133,16 +143,27 @@ class CustomerServiceTest {
         doThrow(new ObjectOptimisticLockingFailureException(Customer.class, CUSTOMER_ID))
                 .when(repository).flush();
 
-        assertThatThrownBy(() -> service.update(CUSTOMER_ID, updateRequest(0L, null)))
-                .isInstanceOf(CustomerVersionConflictException.class);
+        assertResponseStatus(() -> service.update(CUSTOMER_ID, updateRequest(0L, null)), HttpStatus.CONFLICT,
+                CustomerService.VERSION_CONFLICT_MESSAGE.formatted(CUSTOMER_ID));
     }
 
     @Test
     void update_unknownId_throwsNotFound() {
         when(repository.findById(CUSTOMER_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.update(CUSTOMER_ID, updateRequest(0L, null)))
-                .isInstanceOf(CustomerNotFoundException.class);
+        assertResponseStatus(() -> service.update(CUSTOMER_ID, updateRequest(0L, null)), HttpStatus.NOT_FOUND,
+                "No customer exists with id " + CUSTOMER_ID + ".");
+    }
+
+    @Test
+    void find_queriesRepositoryWithFilterAndPageRequest() {
+        Pageable pageable = PageRequest.of(1, 20, Sort.by("id"));
+        Page<Customer> page = new PageImpl<>(List.of(), pageable, 0);
+        when(repository.findAll(ArgumentMatchers.<Specification<Customer>>any(), eq(pageable))).thenReturn(page);
+
+        Page<Customer> found = service.find(new CustomerFilter(CustomerStatus.ACTIVE, "joao"), pageable);
+
+        assertThat(found).isSameAs(page);
     }
 
     @Test
@@ -150,6 +171,13 @@ class CustomerServiceTest {
         service.delete(CUSTOMER_ID);
 
         verify(repository).deleteCustomerById(CUSTOMER_ID);
+    }
+
+    private static void assertResponseStatus(ThrowingCallable call, HttpStatus status, String reason) {
+        assertThatThrownBy(call).isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+            assertThat(exception.getStatusCode()).isEqualTo(status);
+            assertThat(exception.getReason()).isEqualTo(reason);
+        });
     }
 
     private Customer storedCustomer(long version) {

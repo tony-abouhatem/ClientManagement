@@ -420,8 +420,9 @@ class CustomerCrudFunctionalTest {
     // When GET /customers/999999
     //      and PUT /customers/999999 {"name":"Ana Souza","email":"ana@example.com","status":"ACTIVE","version":0}
     //      are called
-    // Then each response is 404 problem+json with "status":404 and "title":"Customer not found"
-    //  (same title for every customer 404 — confirmed by the user)
+    // Then each response is 404 problem+json with "status":404, the standard "title":"Not Found"
+    //  and "detail":"No customer exists with id 999999."
+    //  (user decision, ticket 04: errors use Spring's standard titles; the detail identifies the case)
     //  DELETE is idempotent and returns 204 for an unknown id (user decision): see delete_isIdempotent_returns204.
     @Test
     @DisplayName("should return 404 problem when GET or PUT targets a nonexistent id")
@@ -434,7 +435,8 @@ class CustomerCrudFunctionalTest {
         for (MockHttpServletRequestBuilder request : requests) {
             JsonNode problem = expectProblem(mockMvc.perform(request.with(admin())), 404);
 
-            assertThat(problem.path("title").asString()).isEqualTo("Customer not found");
+            assertThat(problem.path("title").asString()).isEqualTo("Not Found");
+            assertThat(problem.path("detail").asString()).isEqualTo("No customer exists with id " + UNKNOWN_ID + ".");
             assertThat(problem.path("instance").asString()).isEqualTo(customerPath(UNKNOWN_ID));
         }
     }

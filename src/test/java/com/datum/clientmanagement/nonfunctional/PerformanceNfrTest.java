@@ -9,7 +9,6 @@ package com.datum.clientmanagement.nonfunctional;
 
 import com.datum.clientmanagement.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +48,7 @@ class PerformanceNfrTest {
     private static final int GET_REQUESTS = 200;
     private static final int POST_REQUESTS = 100;
     private static final int PUT_REQUESTS = 100;
+    private static final int PAGE_SIZE = 20;
     private static final Duration P95_TARGET = Duration.ofMillis(300);
     private static final double P95 = 0.95;
     private static final long RANDOM_SEED = 42L;
@@ -75,9 +75,28 @@ class PerformanceNfrTest {
     //      200 sequential GET /customers/search?name=joao requests are made as USER
     // Then the p95 latency of each series is < 300 ms
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should keep list and search p95 under 300 ms when there are 10k customers")
-    void listAndSearchP95Under300ms() { }
+    void listAndSearchP95Under300ms() throws Exception {
+        seedCustomers();
+        for (int i = 0; i < WARM_UP_REQUESTS; i++) {
+            mockMvc.perform(get("/customers").with(role("USER")));
+            mockMvc.perform(get("/customers/search").param("name", "joao").with(role("USER")));
+        }
+
+        List<Duration> listLatencies = new ArrayList<>();
+        for (int i = 0; i < GET_REQUESTS; i++) {
+            String page = String.valueOf(random.nextInt(SEEDED_CUSTOMERS / PAGE_SIZE));
+            listLatencies.add(timed(get("/customers").param("page", page).param("size", String.valueOf(PAGE_SIZE))
+                    .with(role("USER")), 200));
+        }
+        List<Duration> searchLatencies = new ArrayList<>();
+        for (int i = 0; i < GET_REQUESTS; i++) {
+            searchLatencies.add(timed(get("/customers/search").param("name", "joao").with(role("USER")), 200));
+        }
+
+        assertThat(p95(listLatencies)).as("list p95").isLessThan(P95_TARGET);
+        assertThat(p95(searchLatencies)).as("search p95").isLessThan(P95_TARGET);
+    }
 
     // NFR-15:performance
     // Given 10 000 customers seeded

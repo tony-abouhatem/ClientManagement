@@ -32,8 +32,8 @@ flowchart LR
 - `score`: `ScoreClient` (RestClient + Resilience4j), DTOs, score endpoint.
 - `messaging`: AMQP topology config, `CustomerCreated` publisher, outbox entity and relay, status-change listener, `processed_events`.
 - `security`: `SecurityFilterChain` and the Keycloak role → `ROLE_*` converter.
-- `common.error`: `@RestControllerAdvice`, ProblemDetail helpers, domain exceptions.
-- `config`: typed `@ConfigurationProperties` (Score, messaging, outbox).
+- `common.error`: `@RestControllerAdvice` (validation `errors[]`, generic 500). Business errors are thrown as `ResponseStatusException`.
+- `config`: typed `@ConfigurationProperties` (Score, messaging, outbox, pagination).
 
 ## Data model
 Source of truth: `src/main/resources/db/migration` (Flyway). Hibernate runs with `ddl-auto=validate`.
@@ -57,9 +57,9 @@ Relations: none enforced between the event tables and `customers`. They are logs
 
 Customer response: `{id,name,cpf,email,status,version,createdAt,updatedAt}`. PUT body: `{name,email,status,version (required),cpf?}`.
 
-Pagination: defaults `page=0`, `size=20`. `page<0`, `size<1` or `size>100` returns 400 with `errors[]`. No clamping.
+Pagination: defaults `page=0`, `size=20`, configurable through `app.pagination.default-page` / `default-size` (env `PAGINATION_DEFAULT_PAGE` / `PAGINATION_DEFAULT_SIZE`). `page<0`, `size<1` or `size>100` returns 400 with `errors[]`. No clamping.
 
-All customer-not-found cases return 404 with title `Customer not found`, except DELETE, which is idempotent and returns 204.
+All customer-not-found cases return 404 (standard title `Not Found`, detail `No customer exists with id <id>.`), except DELETE, which is idempotent and returns 204.
 
 Page response shape: `{ "content": [...], "page": { "size", "number", "totalElements", "totalPages" } }` (Spring Data `PagedModel` via DTO serialization).
 
