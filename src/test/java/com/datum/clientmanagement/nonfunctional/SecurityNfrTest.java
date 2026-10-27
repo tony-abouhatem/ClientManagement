@@ -7,6 +7,7 @@
 package com.datum.clientmanagement.nonfunctional;
 
 import com.datum.clientmanagement.TestcontainersConfiguration;
+import com.datum.clientmanagement.customer.CustomerService;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,18 +17,25 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -39,8 +47,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Testcontainers(disabledWithoutDocker = true)
 class SecurityNfrTest {
 
+    private static final long FORCED_FAILURE_ID = 424242L;
+    private static final List<String> LEAK_MARKERS =
+            List.of("Exception", "org.springframework", "org.hibernate", "SQL", "at com.datum", "trace");
+
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @MockitoSpyBean
+    private CustomerService customerService;
 
     // NFR-2:security (allow-list)
     // Given no Authorization header
@@ -99,7 +117,7 @@ class SecurityNfrTest {
                 .andReturn();
         MockHttpServletResponse response = result.getResponse();
 
-        // Until ticket 03 adds the controller the request ends in 404; it must still pass authorization.
+        // Until ticket 04 adds the list endpoint the request ends in 405; it must still pass authorization.
         assertThat(response.getStatus()).isNotIn(401, 403);
         assertThat(response.getHeaders(HttpHeaders.SET_COOKIE)).isEmpty();
         assertThat(result.getRequest().getSession(false)).isNull();
@@ -120,11 +138,38 @@ class SecurityNfrTest {
     // When requests that produce 400 (malformed JSON), 404 (unknown id), 409 (duplicate CPF) and 500 (forced failure) are made
     // Then no response body contains "Exception", "org.springframework", "org.hibernate", "SQL", "at com.datum" or "trace"
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should not leak stack traces, class names or SQL in any error response")
-    void errorResponses_doNotLeakInternals() { }
+    void errorResponses_doNotLeakInternals() throws Exception {
+        jdbcTemplate.update("DELETE FROM customers");
+        String customerBody = "{\"name\":\"Ana Souza\",\"cpf\":\"52998224725\",\"email\":\"ana@example.com\"}";
+        mockMvc.perform(adminJson(post("/customers"), customerBody)).andExpect(status().isCreated());
+        doThrow(new IllegalStateException("org.hibernate.exception.SQLGrammarException: SQL [select * from customers]"))
+                .when(customerService).findById(FORCED_FAILURE_ID);
+
+        Map<String, MockHttpServletRequestBuilder> requestsByExpectedStatus = Map.of(
+                "400", adminJson(post("/customers"), "{\"name\": \"Ana\", "),
+                "404", get("/customers/999999").with(admin()),
+                "409", adminJson(post("/customers"), customerBody),
+                "500", get("/customers/" + FORCED_FAILURE_ID).with(admin()));
+
+        for (Map.Entry<String, MockHttpServletRequestBuilder> entry : requestsByExpectedStatus.entrySet()) {
+            MockHttpServletResponse response = mockMvc.perform(entry.getValue()).andReturn().getResponse();
+
+            assertThat(response.getStatus()).as("status").isEqualTo(Integer.parseInt(entry.getKey()));
+            assertThat(response.getContentAsString()).as("body of the %s response", entry.getKey())
+                    .doesNotContain(LEAK_MARKERS);
+        }
+    }
 
     private int statusOf(String path) throws Exception {
         return mockMvc.perform(get(path)).andReturn().getResponse().getStatus();
+    }
+
+    private static MockHttpServletRequestBuilder adminJson(MockHttpServletRequestBuilder request, String body) {
+        return request.contentType(MediaType.APPLICATION_JSON).content(body).with(admin());
+    }
+
+    private static RequestPostProcessor admin() {
+        return jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 }
