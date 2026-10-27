@@ -8,7 +8,6 @@ package com.datum.clientmanagement.nonfunctional;
 
 import com.datum.clientmanagement.TestcontainersConfiguration;
 import com.datum.clientmanagement.customer.CustomerService;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -117,8 +116,7 @@ class SecurityNfrTest {
                 .andReturn();
         MockHttpServletResponse response = result.getResponse();
 
-        // Until ticket 04 adds the list endpoint the request ends in 405; it must still pass authorization.
-        assertThat(response.getStatus()).isNotIn(401, 403);
+        assertThat(response.getStatus()).isEqualTo(200);
         assertThat(response.getHeaders(HttpHeaders.SET_COOKIE)).isEmpty();
         assertThat(result.getRequest().getSession(false)).isNull();
     }
@@ -129,9 +127,25 @@ class SecurityNfrTest {
     // Then each response is 200 with empty content
     //  And the customers table still has 2 rows
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should treat SQL injection payloads in name as literal text")
-    void sqlInjectionInName_isInert() { }
+    void sqlInjectionInName_isInert() throws Exception {
+        jdbcTemplate.update("DELETE FROM customers");
+        for (String[] customer : List.of(new String[]{"Ana Souza", "52998224725"},
+                new String[]{"Bruno Lima", "11144477735"})) {
+            mockMvc.perform(adminJson(post("/customers"), "{\"name\":\"" + customer[0] + "\",\"cpf\":\"" + customer[1]
+                    + "\",\"email\":\"customer@example.com\"}")).andExpect(status().isCreated());
+        }
+
+        // MockMvc's param() takes decoded values: these are the decoded forms of the payloads in the scenario.
+        mockMvc.perform(get("/customers/search").param("name", "' OR '1'='1").with(user()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty());
+        mockMvc.perform(get("/customers").param("name", "'; DROP TABLE customers;--").with(user()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty());
+
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM customers", Integer.class)).isEqualTo(2);
+    }
 
     // NFR:security (information leakage) — ticket 03 / NFR-13
     // Given an ADMIN
@@ -171,5 +185,9 @@ class SecurityNfrTest {
 
     private static RequestPostProcessor admin() {
         return jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+    }
+
+    private static RequestPostProcessor user() {
+        return jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"));
     }
 }

@@ -90,7 +90,7 @@ curl -s -X POST http://localhost:8081/realms/client-management/protocol/openid-c
 | GET | `/actuator/health` | público | 200 | — |
 
 - Os erros seguem a RFC 7807 (`application/problem+json`).
-- Cliente inexistente: 404 com título `Customer not found` (exceto DELETE, que é idempotente e retorna 204).
+- Cliente inexistente: 404 com o título padrão `Not Found` e detalhe `No customer exists with id <id>.` (exceto DELETE, que é idempotente e retorna 204).
 - **Paginação:** os padrões são `page=0` e `size=20`. `page < 0`, `size < 1` ou `size > 100` resultam em 400, com `errors[]` indicando o campo (ex.: "size must be between 1 and 100").
 - **Concorrência:** toda resposta de cliente traz `version`. O `PUT` exige o `version` lido por último. Se o `version` divergir, a resposta é 409. Se estiver ausente, 400.
 - **Score:** o serviço externo indisponível (conexão recusada, timeout de conexão, 5xx após retries, circuit breaker aberto) gera 503. Uma resposta lenta (timeout de leitura) gera 504. Score inexistente gera 404, e uma resposta inválida gera 502.

@@ -1,17 +1,18 @@
 package com.datum.clientmanagement.customer;
 
 import com.datum.clientmanagement.TestcontainersConfiguration;
-import com.datum.clientmanagement.common.error.CustomerVersionConflictException;
-import com.datum.clientmanagement.common.error.DuplicateCpfException;
 import jakarta.persistence.EntityManager;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.web.server.ResponseStatusException;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.Optional;
@@ -24,7 +25,7 @@ import static org.mockito.Mockito.doReturn;
 
 /**
  * Simulates two requests racing past the service's up-front checks, so only PostgreSQL stops the second one
- * (unique CPF constraint, version column in the UPDATE). Proves the real database errors become 409 domain errors.
+ * (unique CPF constraint, version column in the UPDATE). Proves the real database errors become 409 responses.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -58,9 +59,9 @@ class CustomerServiceDatabaseGuardTest {
         doReturn(false).when(customerRepository).existsByCpf(anyString());
         customerService.create(new CustomerRequests.Create("Ana Souza", CPF, "ana@example.com", null));
 
-        assertThatThrownBy(() -> customerService.create(
-                new CustomerRequests.Create("Outra Pessoa", CPF, "outra@example.com", null)))
-                .isInstanceOf(DuplicateCpfException.class);
+        assertResponseStatus(() -> customerService.create(
+                new CustomerRequests.Create("Outra Pessoa", CPF, "outra@example.com", null)),
+                CustomerService.DUPLICATE_CPF_MESSAGE);
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM customers WHERE cpf = ?", Integer.class, CPF))
                 .isEqualTo(1);
     }
@@ -75,10 +76,17 @@ class CustomerServiceDatabaseGuardTest {
             return loaded;
         }).when(customerRepository).findById(id);
 
-        assertThatThrownBy(() -> customerService.update(id,
-                new CustomerRequests.Update("Name A", "ana@example.com", "ACTIVE", 0L, null)))
-                .isInstanceOf(CustomerVersionConflictException.class);
+        assertResponseStatus(() -> customerService.update(id,
+                new CustomerRequests.Update("Name A", "ana@example.com", "ACTIVE", 0L, null)),
+                CustomerService.VERSION_CONFLICT_MESSAGE.formatted(id));
         assertThat(jdbcTemplate.queryForObject("SELECT name FROM customers WHERE id = ?", String.class, id))
                 .isNotEqualTo("Name A");
+    }
+
+    private static void assertResponseStatus(ThrowingCallable call, String reason) {
+        assertThatThrownBy(call).isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+            assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+            assertThat(exception.getReason()).isEqualTo(reason);
+        });
     }
 }
