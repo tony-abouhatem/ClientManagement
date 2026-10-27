@@ -17,16 +17,12 @@ import java.net.URI;
  */
 final class ProblemDetailResponseWriter {
 
-    // Written explicitly because Spring 7 leaves "type" null and the JSON would omit it (ARCHITECTURE "Errors").
-    private static final URI DEFAULT_PROBLEM_TYPE = URI.create("about:blank");
-
     // The no-arg constructor registers Spring's ProblemDetail mix-in, so the JSON has the RFC 7807 shape.
     private final JacksonJsonHttpMessageConverter converter = new JacksonJsonHttpMessageConverter();
 
     /** Writes a problem body using the status already set on the response. */
     void write(HttpServletRequest request, HttpServletResponse response, String detail) throws IOException {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.valueOf(response.getStatus()), detail);
-        problem.setType(DEFAULT_PROBLEM_TYPE);
         problem.setInstance(URI.create(request.getRequestURI()));
         converter.write(problem, MediaType.APPLICATION_PROBLEM_JSON, new ServletServerHttpResponse(response));
     }
