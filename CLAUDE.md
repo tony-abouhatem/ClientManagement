@@ -55,7 +55,7 @@ Read first: `docs/PRODUCT.md` (scope, rules, NFRs), `docs/ARCHITECTURE.md` (desi
 - Code, identifiers, comments and docs/ in **English**. `README.md` in **Portuguese**.
 - Constructor injection only. DTOs as `record`s. No entities in controller signatures.
 - Validation with Jakarta Bean Validation on DTOs. The CPF check uses a custom `@Cpf` constraint plus a normalizer.
-- Errors: throw domain exceptions (`CustomerNotFoundException`, `DuplicateCpfException`, …) and map them to `ProblemDetail` in the `@RestControllerAdvice`. Don't build error JSON by hand in controllers.
+- Errors: throw Spring's `ResponseStatusException` with the HTTP status and a client-safe message (never the CPF), e.g. `new ResponseStatusException(HttpStatus.NOT_FOUND, "No customer exists with id 7.")`. Spring renders it as a `ProblemDetail` with the standard title ("Not Found") and the message as `detail`. The `@RestControllerAdvice` only adds `errors[]` for validation failures and a generic 500. Don't build error JSON by hand in controllers.
 - Config through `@ConfigurationProperties` records. No hard-coded URLs, credentials or timeouts.
 - Log CPF masked only, showing the last 2 digits: `*********25` (NFR-3).
 - Customer responses always include `version`. PUT requires `version`: a mismatch returns 409 and a missing value returns 400.

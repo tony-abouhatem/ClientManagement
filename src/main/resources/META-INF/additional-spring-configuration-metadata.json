@@ -1,6 +1,16 @@
 {
   "properties": [
     {
+      "name": "app.pagination.default-page",
+      "type": "java.lang.Integer",
+      "description": "Page number used when a list request omits page (ticket 04, NFR-14)."
+    },
+    {
+      "name": "app.pagination.default-size",
+      "type": "java.lang.Integer",
+      "description": "Page size used when a list request omits size; must be within 1..100 (ticket 04, NFR-14)."
+    },
+    {
       "name": "app.score.base-url",
       "type": "java.net.URI",
       "description": "Base URL of the external Score service (ticket 05)."

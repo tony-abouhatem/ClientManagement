@@ -53,7 +53,7 @@ Evaluators need to see how a candidate handles a realistic service: CRUD, securi
 - **Email**: required, valid format (`@Email`), max 254 characters, not unique.
 - **Status**: `ACTIVE` | `INACTIVE`. Defaults to `ACTIVE` on create when omitted.
 - **Version** is returned in every customer response and required on PUT (optimistic locking, NFR-12).
-- **Not found**: every customer-not-found response is a 404 with title `Customer not found`.
+- **Not found**: every customer-not-found response is a 404 with the standard title `Not Found` and detail `No customer exists with id <id>.`.
 - **Delete** is a hard delete and is idempotent: it returns 204 whether the customer existed or not (already deleted or unknown id).
 - **Search** is case- and accent-insensitive: `joao` matches `João da Silva`.
 
