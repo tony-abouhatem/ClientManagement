@@ -2,15 +2,57 @@
  * NFR-13, NFR-14 (docs/PRODUCT.md); tickets 02, 03, 04, 05 (GitHub issues #3, #4, #5, #6).
  *
  * Interfaces under test: @RestControllerAdvice in com.datum.clientmanagement.common.error, all /customers endpoints.
- * ProblemDetail fields: type, title, status, detail, instance [, errors[{field, message}]].
+ * ProblemDetail fields: title, status, detail, instance [, errors[{field, message}]].
  */
 package com.datum.clientmanagement.nonfunctional;
 
+import com.datum.clientmanagement.TestcontainersConfiguration;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+@Import(TestcontainersConfiguration.class)
+@Testcontainers(disabledWithoutDocker = true)
+@SuppressWarnings({"SqlResolve", "SqlNoDataSourceInspection"}) // IDE has no database; the SQL runs against Testcontainers Postgres
 class ApiContractNfrTest {
+
+    private static final JsonMapper JSON = JsonMapper.builder().build();
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void deleteAllCustomers() {
+        jdbcTemplate.update("DELETE FROM customers");
+    }
 
     // NFR-13:api
     // Given requests that produce each error status:
@@ -19,7 +61,7 @@ class ApiContractNfrTest {
     //   502/503/504 (Score via WireMock)
     // When each response is inspected
     // Then Content-Type is "application/problem+json"
-    //  And the body has "type" (string), "title" (non-empty), "status" equal to the HTTP status,
+    //  And the body has "title" (non-empty), "status" equal to the HTTP status,
     //      "detail" (string) and "instance" equal to the request path (e.g. "/customers/999999")
     @Test
     @Disabled("pending: implementer")
@@ -32,9 +74,27 @@ class ApiContractNfrTest {
     // Then the 400 body has errors[] of length 3, each element with non-empty "field" and "message",
     //      and the fields are exactly {"name","cpf","email"}
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should include errors[] with field and message when validation fails")
-    void validationErrors_includeFieldAndMessage() { }
+    void validationErrors_includeFieldAndMessage() throws Exception {
+        String body = mockMvc.perform(post("/customers")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"\",\"cpf\":\"123\",\"email\":\"x\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode errors = JSON.readTree(body).path("errors");
+        assertThat(errors.isArray()).isTrue();
+        assertThat(errors.size()).isEqualTo(3);
+        List<String> fields = new ArrayList<>();
+        for (JsonNode error : errors) {
+            assertThat(error.path("field").asString()).isNotBlank();
+            assertThat(error.path("message").asString()).isNotBlank();
+            fields.add(error.path("field").asString());
+        }
+        assertThat(fields).containsExactlyInAnyOrder("name", "cpf", "email");
+    }
 
     // NFR-14:api — no clamping
     // Given 30 customers

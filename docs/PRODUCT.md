@@ -54,7 +54,7 @@ Evaluators need to see how a candidate handles a realistic service: CRUD, securi
 - **Status**: `ACTIVE` | `INACTIVE`. Defaults to `ACTIVE` on create when omitted.
 - **Version** is returned in every customer response and required on PUT (optimistic locking, NFR-12).
 - **Not found**: every customer-not-found response is a 404 with title `Customer not found`.
-- **Delete** is a hard delete and returns 204. Deleting an unknown id returns 404.
+- **Delete** is a hard delete and is idempotent: it returns 204 whether the customer existed or not (already deleted or unknown id).
 - **Search** is case- and accent-insensitive: `joao` matches `João da Silva`.
 
 ## Roadmap (later, not planned)

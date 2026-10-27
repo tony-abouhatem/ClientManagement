@@ -49,7 +49,7 @@ Relations: none enforced between the event tables and `customers`. They are logs
 |--------|------|------|---------|----------------|
 | POST | `/customers` | ADMIN | 201 + `Location` | 400 validation, 409 duplicate CPF |
 | PUT | `/customers/{id}` | ADMIN | 200 | 400 (incl. missing `version`), 404, 409 `version` mismatch, 422 CPF change |
-| DELETE | `/customers/{id}` | ADMIN | 204 | 404 |
+| DELETE | `/customers/{id}` | ADMIN | 204 (also for an unknown or already-deleted id: idempotent) | — |
 | GET | `/customers/{id}` | USER, ADMIN | 200 | 404 |
 | GET | `/customers?status=&name=&page=&size=&sort=` | USER, ADMIN | 200 page | 400 invalid status |
 | GET | `/customers/search?name=` (paged) | USER, ADMIN | 200 page | 400 blank name |
@@ -59,7 +59,7 @@ Customer response: `{id,name,cpf,email,status,version,createdAt,updatedAt}`. PUT
 
 Pagination: defaults `page=0`, `size=20`. `page<0`, `size<1` or `size>100` returns 400 with `errors[]`. No clamping.
 
-All customer-not-found cases return 404 with title `Customer not found`.
+All customer-not-found cases return 404 with title `Customer not found`, except DELETE, which is idempotent and returns 204.
 
 Page response shape: `{ "content": [...], "page": { "size", "number", "totalElements", "totalPages" } }` (Spring Data `PagedModel` via DTO serialization).
 
@@ -94,7 +94,7 @@ Page response shape: `{ "content": [...], "page": { "size", "number", "totalElem
   - Transient errors (e.g. DB down): stateless retry with `maxAttempts=3` (first delivery + 2 retries, exponential backoff), then `RejectAndDontRequeueRecoverer` → DLQ.
 
 ## Errors
-`@RestControllerAdvice` returns `ProblemDetail` (`application/problem+json`) with `type`, `title`, `status`, `detail`, `instance`. Validation errors add `errors: [{field, message}]`.
+`@RestControllerAdvice` returns `ProblemDetail` (`application/problem+json`) with `title`, `status`, `detail`, `instance`. Validation errors add `errors: [{field, message}]`.
 
 ## Configuration
 `application.yaml` holds defaults, and env vars override them (DB URL/user/password, RabbitMQ host/port/credentials, `ISSUER_URI`, `SCORE_BASE_URL`, timeouts, retry, outbox interval). There is a `test` profile for Testcontainers. The full list goes in README "Configurações".

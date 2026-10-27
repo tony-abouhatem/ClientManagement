@@ -31,7 +31,6 @@ class ProblemDetailAuthenticationEntryPointTest {
         assertThat(response.getHeader(HttpHeaders.WWW_AUTHENTICATE)).startsWith("Bearer");
         assertThat(MediaType.parseMediaType(requireNonNull(response.getContentType()))).isEqualTo(MediaType.APPLICATION_PROBLEM_JSON);
         JsonNode body = JsonMapper.builder().build().readTree(response.getContentAsString());
-        assertThat(body.path("type").asString()).isEqualTo("about:blank");
         assertThat(body.path("title").asString()).isEqualTo("Unauthorized");
         assertThat(body.path("status").asInt()).isEqualTo(401);
         assertThat(body.path("detail").asString()).isEqualTo(ProblemDetailAuthenticationEntryPoint.DETAIL);
