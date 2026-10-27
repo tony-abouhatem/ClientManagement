@@ -3,9 +3,12 @@ package com.datum.clientmanagement.security;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.stereotype.Controller;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.RequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -20,8 +23,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 /**
  * Web slice without actuator or controllers: a 404 means the request passed the security filter chain.
+ * Controllers are excluded explicitly so the real customer endpoints (and their dependencies) stay out of the slice.
  */
-@WebMvcTest
+@WebMvcTest(excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Controller.class))
 @Import(SecurityConfig.class)
 class SecurityConfigTest {
 

@@ -82,7 +82,7 @@ curl -s -X POST http://localhost:8081/realms/client-management/protocol/openid-c
 |--------|---------|--------|---------|-------|
 | POST | `/customers` | ADMIN | 201 | 400, 401, 403, 409 (CPF duplicado) |
 | PUT | `/customers/{id}` | ADMIN | 200 | 400 (inclui `version` ausente), 404, 409 (`version` divergente), 422 (troca de CPF) |
-| DELETE | `/customers/{id}` | ADMIN | 204 | 404 |
+| DELETE | `/customers/{id}` | ADMIN | 204 (também para id inexistente ou já excluído: idempotente) | — |
 | GET | `/customers/{id}` | USER/ADMIN | 200 | 404 |
 | GET | `/customers?status=ACTIVE&name=&page=0&size=20` | USER/ADMIN | 200 | 400 |
 | GET | `/customers/search?name=joao&page=0&size=20` | USER/ADMIN | 200 | 400 |
@@ -90,7 +90,7 @@ curl -s -X POST http://localhost:8081/realms/client-management/protocol/openid-c
 | GET | `/actuator/health` | público | 200 | — |
 
 - Os erros seguem a RFC 7807 (`application/problem+json`).
-- Cliente inexistente: 404 com título `Customer not found`.
+- Cliente inexistente: 404 com título `Customer not found` (exceto DELETE, que é idempotente e retorna 204).
 - **Paginação:** os padrões são `page=0` e `size=20`. `page < 0`, `size < 1` ou `size > 100` resultam em 400, com `errors[]` indicando o campo (ex.: "size must be between 1 and 100").
 - **Concorrência:** toda resposta de cliente traz `version`. O `PUT` exige o `version` lido por último. Se o `version` divergir, a resposta é 409. Se estiver ausente, 400.
 - **Score:** o serviço externo indisponível (conexão recusada, timeout de conexão, 5xx após retries, circuit breaker aberto) gera 503. Uma resposta lenta (timeout de leitura) gera 504. Score inexistente gera 404, e uma resposta inválida gera 502.
