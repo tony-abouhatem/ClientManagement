@@ -24,7 +24,7 @@ Read first: `docs/PRODUCT.md` (scope, rules, NFRs), `docs/ARCHITECTURE.md` (desi
 | Full stack | `docker compose up --build` |
 
 ## Folder conventions
-- `src/main/java/com/datum/clientmanagement/{customer,score,messaging,security,common/error,config}`
+- `src/main/java/com/datum/clientmanagement/{customer,messaging,security,common/error,config}`
 - `src/main/resources/application.yaml`: defaults with `${ENV:default}` placeholders.
 - `src/main/resources/db/migration/V<n>__<desc>.sql`: Flyway, the only place schema changes happen.
 - `docker/keycloak/` (realm JSON), `docker/wiremock/mappings/` and `__files/`: compose assets.
@@ -55,9 +55,9 @@ Read first: `docs/PRODUCT.md` (scope, rules, NFRs), `docs/ARCHITECTURE.md` (desi
 - Code, identifiers, comments and docs/ in **English**. `README.md` in **Portuguese**.
 - Constructor injection only. DTOs as `record`s. No entities in controller signatures.
 - Validation with Jakarta Bean Validation on DTOs. The CPF check uses a custom `@Cpf` constraint plus a normalizer.
-- Errors: throw Spring's `ResponseStatusException` with the HTTP status and a client-safe message (never the CPF), e.g. `new ResponseStatusException(HttpStatus.NOT_FOUND, "No customer exists with id 7.")`. Spring renders it as a `ProblemDetail` with the standard title ("Not Found") and the message as `detail`. The `@RestControllerAdvice` only adds `errors[]` for validation failures and a generic 500. Don't build error JSON by hand in controllers.
+- Errors: throw Spring's `ResponseStatusException` with the HTTP status and a client-safe message (never the CPF), e.g. `new ResponseStatusException(HttpStatus.NOT_FOUND, "No customer exists with id 7.")`. Spring renders it as a `ProblemDetail` with the standard title ("Not Found") and the message as `detail`. The `@RestControllerAdvice` only adds `errors[]` for validation failures and a generic 500. Don't build error JSON by hand in controllers. Titles are always Spring's standard ones (an unknown customer is "Not Found" on every endpoint, including `/customers/{id}/score`). The only exception is the Score 404, titled "Score not found" (NFR-5) through `exception.getBody().setTitle(...)`.
 - Config through `@ConfigurationProperties` records. No hard-coded URLs, credentials or timeouts.
-- Log CPF masked only, showing the last 2 digits: `*********25` (NFR-3).
+- Log CPF masked only, showing the last 2 digits: `*********25` (NFR-3). Library logs can leak it too: `org.hibernate.orm.jdbc.error` is `OFF` because it prints PostgreSQL's `Key (cpf)=(...)` detail, and exceptions whose message holds a Score URL are never logged. Cover new leak paths in `PrivacyLoggingNfrTest`.
 - Customer responses always include `version`. PUT requires `version`: a mismatch returns 409 and a missing value returns 400.
 - Pagination params are validated (page ≥ 0, 1 ≤ size ≤ 100) and violations return 400. Never clamp.
 - `ProblemDetail` for every error, including 401 and 403.

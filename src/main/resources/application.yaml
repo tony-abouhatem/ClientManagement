@@ -30,6 +30,13 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+logging:
+  level:
+    # NFR-3: on a failed statement Hibernate logs the database's error detail, which for the unique CPF
+    # constraint is "Key (cpf)=(<full CPF>) already exists". The exception itself still propagates:
+    # CustomerService turns it into a 409 and logs the masked CPF, and anything unexpected reaches the 500 handler.
+    org.hibernate.orm.jdbc.error: OFF
+
 management:
   endpoints:
     web:
@@ -53,6 +60,9 @@ app:
     default-page: ${PAGINATION_DEFAULT_PAGE:0}
     default-size: ${PAGINATION_DEFAULT_SIZE:20}
 
+# Score resilience (NFR-4, NFR-6). The circuit breaker wraps the retry, so one request counts as one call.
+# Only transient failures are retried and recorded: 5xx (HttpServerErrorException) and I/O errors including
+# timeouts (ResourceAccessException). 404, other 4xx and malformed bodies are final answers and never retried.
 resilience4j:
   retry:
     instances:
@@ -61,9 +71,18 @@ resilience4j:
         wait-duration: ${SCORE_RETRY_WAIT_DURATION:200ms}
         enable-exponential-backoff: true
         exponential-backoff-multiplier: ${SCORE_RETRY_BACKOFF_MULTIPLIER:2}
+        retry-exceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - org.springframework.web.client.ResourceAccessException
   circuitbreaker:
     instances:
       score:
+        sliding-window-type: COUNT_BASED
         sliding-window-size: ${SCORE_CB_SLIDING_WINDOW_SIZE:10}
+        # Resilience4j defaults this to 100, which would keep a 10-call window from ever opening.
+        minimum-number-of-calls: ${SCORE_CB_SLIDING_WINDOW_SIZE:10}
         failure-rate-threshold: ${SCORE_CB_FAILURE_RATE_THRESHOLD:50}
         wait-duration-in-open-state: ${SCORE_CB_WAIT_DURATION_IN_OPEN_STATE:10s}
+        record-exceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - org.springframework.web.client.ResourceAccessException

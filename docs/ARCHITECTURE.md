@@ -28,8 +28,7 @@ flowchart LR
 ```
 
 ## Package layout (`com.datum.clientmanagement`)
-- `customer`: entity, repository, service, controller, DTOs, CPF validator/normalizer.
-- `score`: `ScoreClient` (RestClient + Resilience4j), DTOs, score endpoint.
+- `customer`: entity, repository, service, controller, DTOs, CPF validator/normalizer, and the Score integration: `ScoreClient` (RestClient + Resilience4j) and the `GET /customers/{id}/score` endpoint.
 - `messaging`: AMQP topology config, `CustomerCreated` publisher, outbox entity and relay, status-change listener, `processed_events`.
 - `security`: `SecurityFilterChain` and the Keycloak role → `ROLE_*` converter.
 - `common.error`: `@RestControllerAdvice` (validation `errors[]`, generic 500). Business errors are thrown as `ResponseStatusException`.

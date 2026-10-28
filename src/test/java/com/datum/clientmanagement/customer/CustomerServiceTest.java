@@ -44,7 +44,9 @@ class CustomerServiceTest {
     private static final Instant NOW_TRUNCATED = Instant.parse("2026-02-01T12:30:00.123456Z");
 
     private final CustomerRepository repository = mock(CustomerRepository.class);
-    private final CustomerService service = new CustomerService(repository, Clock.fixed(NOW, ZoneOffset.UTC));
+    private final ScoreClient scoreClient = mock(ScoreClient.class);
+    private final CustomerService service =
+            new CustomerService(repository, Clock.fixed(NOW, ZoneOffset.UTC), scoreClient);
 
     @Test
     void create_newCpf_savesNormalizedCustomerWithDefaults() {
@@ -100,6 +102,32 @@ class CustomerServiceTest {
     }
 
     @Test
+    void scoreOf_existingCustomer_combinesCustomerAndScore() {
+        storedCustomer(0);
+        when(scoreClient.fetch(CPF)).thenReturn(new ExternalScore("ignored", 750, "GOOD"));
+
+        assertThat(service.scoreOf(CUSTOMER_ID)).isEqualTo(new ScoreResponse(CUSTOMER_ID, CPF, 750, "GOOD"));
+    }
+
+    @Test
+    void scoreOf_unknownCustomer_throwsNotFoundWithoutCallingScore() {
+        when(repository.findById(CUSTOMER_ID)).thenReturn(Optional.empty());
+
+        assertResponseStatus(() -> service.scoreOf(CUSTOMER_ID), HttpStatus.NOT_FOUND,
+                "No customer exists with id " + CUSTOMER_ID + ".");
+        verify(scoreClient, never()).fetch(ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void scoreOf_scoreFailure_propagates() {
+        storedCustomer(0);
+        ResponseStatusException unavailable = new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "down");
+        when(scoreClient.fetch(CPF)).thenThrow(unavailable);
+
+        assertThatThrownBy(() -> service.scoreOf(CUSTOMER_ID)).isSameAs(unavailable);
+    }
+
+    @Test
     void update_matchingVersion_appliesChangesAndFlushes() {
         Customer stored = storedCustomer(0L);
 
@@ -121,7 +149,7 @@ class CustomerServiceTest {
     void update_staleVersion_throwsConflictAndChangesNothing() {
         Customer stored = storedCustomer(1L);
 
-        assertResponseStatus(() -> service.update(CUSTOMER_ID, updateRequest(0L, null)), HttpStatus.CONFLICT,
+        assertResponseStatus(() -> service.update(CUSTOMER_ID, updateRequest(null)), HttpStatus.CONFLICT,
                 CustomerService.VERSION_CONFLICT_MESSAGE.formatted(CUSTOMER_ID));
         assertThat(stored.getName()).isEqualTo("Ana Souza");
         verify(repository, never()).flush();
@@ -131,7 +159,7 @@ class CustomerServiceTest {
     void update_differentCpf_throwsCpfChangeAndChangesNothing() {
         Customer stored = storedCustomer(0L);
 
-        assertResponseStatus(() -> service.update(CUSTOMER_ID, updateRequest(0L, "11144477735")),
+        assertResponseStatus(() -> service.update(CUSTOMER_ID, updateRequest("11144477735")),
                 HttpStatus.UNPROCESSABLE_CONTENT, CustomerService.CPF_CHANGE_MESSAGE);
         assertThat(stored.getName()).isEqualTo("Ana Souza");
         verify(repository, never()).flush();
@@ -143,7 +171,7 @@ class CustomerServiceTest {
         doThrow(new ObjectOptimisticLockingFailureException(Customer.class, CUSTOMER_ID))
                 .when(repository).flush();
 
-        assertResponseStatus(() -> service.update(CUSTOMER_ID, updateRequest(0L, null)), HttpStatus.CONFLICT,
+        assertResponseStatus(() -> service.update(CUSTOMER_ID, updateRequest(null)), HttpStatus.CONFLICT,
                 CustomerService.VERSION_CONFLICT_MESSAGE.formatted(CUSTOMER_ID));
     }
 
@@ -151,7 +179,7 @@ class CustomerServiceTest {
     void update_unknownId_throwsNotFound() {
         when(repository.findById(CUSTOMER_ID)).thenReturn(Optional.empty());
 
-        assertResponseStatus(() -> service.update(CUSTOMER_ID, updateRequest(0L, null)), HttpStatus.NOT_FOUND,
+        assertResponseStatus(() -> service.update(CUSTOMER_ID, updateRequest(null)), HttpStatus.NOT_FOUND,
                 "No customer exists with id " + CUSTOMER_ID + ".");
     }
 
@@ -192,8 +220,8 @@ class CustomerServiceTest {
         return new CustomerRequests.Create("Ana Souza", CPF, "ana@example.com", null);
     }
 
-    private static CustomerRequests.Update updateRequest(long version, String cpf) {
-        return new CustomerRequests.Update("Changed", "changed@example.com", "INACTIVE", version, cpf);
+    private static CustomerRequests.Update updateRequest(String cpf) {
+        return new CustomerRequests.Update("Changed", "changed@example.com", "INACTIVE", 0L, cpf);
     }
 
     private static DataIntegrityViolationException integrityViolation(String constraintName) {
