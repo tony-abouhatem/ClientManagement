@@ -133,7 +133,16 @@ curl -H "Authorization: Bearer $TOKEN" "http://localhost:8080/customers?status=A
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/customers/1/score
 # → {"customerId":1,"cpf":"52998224725","score":750,"classification":"LOW_RISK"}
 ```
-Os CPFs que acionam cenários de erro no WireMock (404, 500, lentidão) serão definidos na implementação do ticket 05 e listados aqui.
+O WireMock do compose (`docker/wiremock/mappings/`) responde ao `GET /scores/{cpf}` conforme o CPF do cliente:
+
+| CPF | Resposta do Score | Resposta de `GET /customers/{id}/score` |
+|-----|-------------------|------------------------------------------|
+| `52998224725` | 200 `{"score":750,"classification":"LOW_RISK"}` | 200 |
+| `11144477735` | 404 | 404 (`title` "Score not found") |
+| `39053344705` | 500 | 503 (após 2 tentativas) |
+| `93541134780` | 200 com atraso de 3 s (acima do timeout de leitura de 2 s) | 504 |
+
+Qualquer outro CPF não tem stub, e o WireMock responde 404.
 
 ## Funcionamento da integração com RabbitMQ
 - **Exchange** `customer.events` (topic).
@@ -156,7 +165,7 @@ Os CPFs que acionam cenários de erro no WireMock (404, 500, lentidão) serão d
 
 ## Estrutura do projeto
 ```
-src/main/java/com/datum/clientmanagement/   customer, score, messaging, security, common/error, config
+src/main/java/com/datum/clientmanagement/   customer, messaging, security, common/error, config
 src/main/resources/db/migration/            migrações Flyway
 src/test/java/com/datum/clientmanagement/   unitários, functional/, nonfunctional/
 docker/                                     realm Keycloak, stubs WireMock

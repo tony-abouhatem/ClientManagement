@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/scores/52998224725"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "cpf": "52998224725",
+      "score": 750,
+      "classification": "LOW_RISK"
+    }
+  }
+}
