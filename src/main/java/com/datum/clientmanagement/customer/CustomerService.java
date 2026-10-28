@@ -34,10 +34,12 @@ public class CustomerService {
 
     private final CustomerRepository repository;
     private final Clock clock;
+    private final ScoreClient scoreClient;
 
-    public CustomerService(CustomerRepository repository, Clock clock) {
+    public CustomerService(CustomerRepository repository, Clock clock, ScoreClient scoreClient) {
         this.repository = repository;
         this.clock = clock;
+        this.scoreClient = scoreClient;
     }
 
     @Transactional
@@ -65,6 +67,16 @@ public class CustomerService {
     public Customer findById(long id) {
         return repository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                 "No customer exists with id " + id + "."));
+    }
+
+    /**
+     * The customer's score from the external Score service, asked by the stored (normalized) CPF. An unknown id
+     * fails with 404 before Score is called. Deliberately not {@code @Transactional}: no database connection is
+     * held while waiting up to 5 s for Score (the repository lookup runs in its own read-only transaction).
+     */
+    public ScoreResponse scoreOf(long id) {
+        Customer customer = findById(id);
+        return ScoreResponse.from(customer, scoreClient.fetch(customer.getCpf()));
     }
 
     @Transactional(readOnly = true)

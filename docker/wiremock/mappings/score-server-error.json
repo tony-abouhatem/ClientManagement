@@ -1,0 +1,9 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/scores/39053344705"
+  },
+  "response": {
+    "status": 500
+  }
+}

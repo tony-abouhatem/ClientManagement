@@ -72,6 +72,11 @@ class CustomerController {
         return CustomerResponse.from(customerService.findById(id));
     }
 
+    @GetMapping("/{id}/score")
+    ScoreResponse score(@PathVariable long id) {
+        return customerService.scoreOf(id);
+    }
+
     @PutMapping("/{id}")
     CustomerResponse update(@PathVariable long id, @Valid @RequestBody CustomerRequests.Update request) {
         return CustomerResponse.from(customerService.update(id, request));
