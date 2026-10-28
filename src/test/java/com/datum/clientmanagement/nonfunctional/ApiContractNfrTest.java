@@ -6,10 +6,15 @@
  */
 package com.datum.clientmanagement.nonfunctional;
 
+import com.datum.clientmanagement.ScoreWireMockConfiguration;
 import com.datum.clientmanagement.TestcontainersConfiguration;
 import com.datum.clientmanagement.customer.CustomerFormats;
+import com.datum.clientmanagement.customer.ScoreClient;
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +26,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -31,17 +37,23 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.reset;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, ScoreWireMockConfiguration.class})
 @Testcontainers(disabledWithoutDocker = true)
 @SuppressWarnings({"SqlResolve", "SqlNoDataSourceInspection"}) // IDE has no database; the SQL runs against Testcontainers Postgres
 class ApiContractNfrTest {
@@ -51,6 +63,9 @@ class ApiContractNfrTest {
     private static final String SEARCH = "/customers/search";
     private static final String INSERT_CUSTOMER = "INSERT INTO customers (name, name_normalized, cpf, email, status,"
             + " created_at, updated_at) VALUES (?, ?, ?, ?, 'ACTIVE', now(), now())";
+    private static final String ANA_CPF = "52998224725";
+    private static final String ANA_BODY = "{\"name\":\"Ana Souza\",\"cpf\":\"52998224725\",\"email\":\"ana@example.com\"}";
+    private static final int READ_TIMEOUT_EXCEEDING_DELAY_MS = 3000;
 
     @Autowired
     private MockMvc mockMvc;
@@ -58,9 +73,21 @@ class ApiContractNfrTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private WireMockServer scoreWireMock;
+
+    @Autowired
+    private CircuitBreakerRegistry circuitBreakerRegistry;
+
+    // Real client; only used to force an unexpected exception for the 500 case.
+    @MockitoSpyBean
+    private ScoreClient scoreClient;
+
     @BeforeEach
-    void deleteAllCustomers() {
+    void resetState() {
         jdbcTemplate.update("DELETE FROM customers");
+        scoreWireMock.resetAll();
+        circuitBreakerRegistry.circuitBreaker(ScoreClient.RESILIENCE_INSTANCE).reset();
     }
 
     // NFR-13:api
@@ -73,9 +100,34 @@ class ApiContractNfrTest {
     //  And the body has "title" (non-empty), "status" equal to the HTTP status,
     //      "detail" (string) and "instance" equal to the request path (e.g. "/customers/999999")
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should return an RFC 7807 ProblemDetail with all standard fields for every error status")
-    void everyError_isProblemDetail() { }
+    void everyError_isProblemDetail() throws Exception {
+        jdbcTemplate.update(INSERT_CUSTOMER, "Ana Souza", "ana souza", ANA_CPF, "ana@example.com");
+        long id = jdbcTemplate.queryForObject("SELECT id FROM customers WHERE cpf = ?", Long.class, ANA_CPF);
+        String customerPath = CUSTOMERS + "/" + id;
+        String scorePath = customerPath + "/score";
+
+        assertProblem(admin(jsonRequest(post(CUSTOMERS),
+                "{\"name\":\"Ana Souza\",\"cpf\":\"52998224726\",\"email\":\"ana@example.com\"}")), 400, CUSTOMERS);
+        assertProblem(get(CUSTOMERS), 401, CUSTOMERS);
+        assertProblem(user(jsonRequest(post(CUSTOMERS), ANA_BODY)), 403, CUSTOMERS);
+        assertProblem(user(get(CUSTOMERS + "/999999")), 404, CUSTOMERS + "/999999");
+        assertProblem(admin(jsonRequest(post(CUSTOMERS), ANA_BODY)), 409, CUSTOMERS);
+        assertProblem(admin(jsonRequest(put(customerPath), "{\"name\":\"Ana Souza\",\"email\":\"ana@example.com\","
+                + "\"status\":\"ACTIVE\",\"version\":0,\"cpf\":\"11144477735\"}")), 422, customerPath);
+
+        doThrow(new IllegalStateException("forced failure")).when(scoreClient).fetch(anyString());
+        assertProblem(user(get(scorePath)), 500, scorePath);
+        reset(scoreClient);
+
+        stubScore(aResponse().withStatus(400));
+        assertProblem(user(get(scorePath)), 502, scorePath);
+        stubScore(aResponse().withStatus(500));
+        assertProblem(user(get(scorePath)), 503, scorePath);
+        stubScore(okJson("{\"cpf\":\"52998224725\",\"score\":750,\"classification\":\"GOOD\"}")
+                .withFixedDelay(READ_TIMEOUT_EXCEEDING_DELAY_MS));
+        assertProblem(user(get(scorePath)), 504, scorePath);
+    }
 
     // NFR-13:api
     // Given an ADMIN
@@ -220,6 +272,36 @@ class ApiContractNfrTest {
         JsonNode problem = JSON.readTree(body);
         assertThat(problem.path("status").asInt()).isEqualTo(400);
         return problem;
+    }
+
+    private void assertProblem(MockHttpServletRequestBuilder request, int expectedStatus, String expectedInstance)
+            throws Exception {
+        MockHttpServletResponse response = mockMvc.perform(request).andReturn().getResponse();
+        String body = response.getContentAsString();
+
+        assertThat(response.getStatus()).as("status; body: %s", body).isEqualTo(expectedStatus);
+        assertThat(MediaType.parseMediaType(response.getContentType()).isCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .as("content type of the %d response", expectedStatus).isTrue();
+        JsonNode problem = JSON.readTree(body);
+        assertThat(problem.path("title").asString()).as("title of %d", expectedStatus).isNotBlank();
+        assertThat(problem.path("status").asInt()).as("status field of %d", expectedStatus).isEqualTo(expectedStatus);
+        assertThat(problem.path("detail").isString()).as("detail of %d is a string; body: %s", expectedStatus, body)
+                .isTrue();
+        assertThat(problem.path("instance").asString()).as("instance of %d", expectedStatus)
+                .isEqualTo(expectedInstance);
+    }
+
+    private void stubScore(ResponseDefinitionBuilder response) {
+        scoreWireMock.resetAll();
+        scoreWireMock.stubFor(WireMock.get("/scores/" + ANA_CPF).willReturn(response));
+    }
+
+    private static MockHttpServletRequestBuilder jsonRequest(MockHttpServletRequestBuilder request, String body) {
+        return request.contentType(MediaType.APPLICATION_JSON).content(body);
+    }
+
+    private static MockHttpServletRequestBuilder admin(MockHttpServletRequestBuilder request) {
+        return request.with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")));
     }
 
     private static MockHttpServletRequestBuilder user(MockHttpServletRequestBuilder request) {
