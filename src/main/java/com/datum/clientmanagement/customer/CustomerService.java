@@ -3,6 +3,7 @@ package com.datum.clientmanagement.customer;
 import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
@@ -35,11 +36,14 @@ public class CustomerService {
     private final CustomerRepository repository;
     private final Clock clock;
     private final ScoreClient scoreClient;
+    private final ApplicationEventPublisher events;
 
-    public CustomerService(CustomerRepository repository, Clock clock, ScoreClient scoreClient) {
+    public CustomerService(CustomerRepository repository, Clock clock, ScoreClient scoreClient,
+            ApplicationEventPublisher events) {
         this.repository = repository;
         this.clock = clock;
         this.scoreClient = scoreClient;
+        this.events = events;
     }
 
     @Transactional
@@ -53,6 +57,7 @@ public class CustomerService {
         try {
             Customer saved = repository.saveAndFlush(customer);
             log.info("Customer {} created with CPF {}", saved.getId(), CustomerFormats.maskCpf(saved.getCpf()));
+            events.publishEvent(new CustomerCreatedEvent(saved.getId(), saved.getCreatedAt()));
             return saved;
         } catch (DataIntegrityViolationException exception) {
             if (isCpfUniqueViolation(exception)) {

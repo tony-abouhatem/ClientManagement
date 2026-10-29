@@ -47,6 +47,7 @@ Read first: `docs/PRODUCT.md` (scope, rules, NFRs), `docs/ARCHITECTURE.md` (desi
   void createCustomer_returns201() { }
   ```
   The implementer removes `@Disabled`, writes the body, and makes it pass. Never delete a pending test without saying so.
+- **Finding a ticket's pending tests**: don't search only for the exact phrase `ticket NN`. NFR classes are shared across tickets and their headers list several (`tickets 02, 03, 04, 05 (GitHub issues #3, #4, #5, #6)`). List every `pending: implementer` test and check both the file header and the test's own comment for the ticket number or issue number.
 - Manual checks, not automated: the JaCoCo report is generated, all compose containers start, and NFR-11 startup time (ticket 01 AC-1/AC-2). Don't write tests for these.
 - Test class names end in `Test`. Never use H2. Integration tests use the Testcontainers Postgres.
 

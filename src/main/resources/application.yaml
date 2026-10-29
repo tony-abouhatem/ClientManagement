@@ -17,6 +17,12 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+    # ADR-5: a publish only counts once the broker confirms it, and an unroutable message comes back as a
+    # return instead of being dropped. Both a nack and a return send the event to the outbox.
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
   security:
     oauth2:
       resourceserver:
@@ -45,6 +51,12 @@ management:
   endpoint:
     health:
       show-components: always
+      # Needed to see each circuit breaker's state (e.g. score: CIRCUIT_OPEN) inside the circuitBreakers component.
+      show-details: always
+  health:
+    # NFR-10: the Score circuit breaker is visible in /actuator/health but never makes the app DOWN.
+    circuitbreakers:
+      enabled: true
 
 app:
   score:
@@ -55,6 +67,8 @@ app:
     confirm-timeout: ${RABBITMQ_CONFIRM_TIMEOUT:5s}
   outbox:
     relay-interval: ${OUTBOX_RELAY_INTERVAL:5s}
+    batch-size: ${OUTBOX_BATCH_SIZE:100}
+    # The wait after a failed relay attempt is resilience4j.retry.instances.outbox (below).
   pagination:
     # Used when a list request omits page/size; default-size must be within 1..100 (NFR-14).
     default-page: ${PAGINATION_DEFAULT_PAGE:0}
@@ -74,6 +88,18 @@ resilience4j:
         retry-exceptions:
           - org.springframework.web.client.HttpServerErrorException
           - org.springframework.web.client.ResourceAccessException
+      # Outbox relay (ADR-5, AC-6, NFR-7). The relay reads the wait settings to compute next_attempt_at after the
+      # n-th failure (wait-duration x multiplier^(n-1), capped; nothing sleeps in-thread) and max-attempts as the
+      # give-up limit. Every failure type counts the same, so there are no exception lists. With the 5 s relay
+      # interval the 15 s cap keeps delivery within 30 s of a RabbitMQ recovery; 5760 attempts at that cap cover
+      # about 24 h of outage. A row whose attempts reach max-attempts is dead: it stays in outbox_events and is no
+      # longer picked up. Raising max-attempts later brings dead rows back into retry by itself.
+      outbox:
+        max-attempts: ${OUTBOX_RETRY_MAX_ATTEMPTS:5760}
+        wait-duration: ${OUTBOX_RETRY_WAIT_DURATION:1s}
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: ${OUTBOX_RETRY_BACKOFF_MULTIPLIER:2}
+        exponential-max-wait-duration: ${OUTBOX_RETRY_MAX_WAIT_DURATION:15s}
   circuitbreaker:
     instances:
       score:
@@ -83,6 +109,10 @@ resilience4j:
         minimum-number-of-calls: ${SCORE_CB_SLIDING_WINDOW_SIZE:10}
         failure-rate-threshold: ${SCORE_CB_FAILURE_RATE_THRESHOLD:50}
         wait-duration-in-open-state: ${SCORE_CB_WAIT_DURATION_IN_OPEN_STATE:10s}
+        # NFR-10: Score is optional. Health shows this breaker as CIRCUIT_OPEN, a status the overall health
+        # aggregation ignores, so an open circuit never turns /actuator/health DOWN.
+        register-health-indicator: true
+        allow-health-indicator-to-fail: false
         record-exceptions:
           - org.springframework.web.client.HttpServerErrorException
           - org.springframework.web.client.ResourceAccessException
