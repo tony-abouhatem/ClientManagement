@@ -13,6 +13,7 @@
  */
 package com.datum.clientmanagement.functional;
 
+import com.datum.clientmanagement.RabbitCtl;
 import com.datum.clientmanagement.RabbitOutage;
 import com.datum.clientmanagement.RestartableRabbitConfiguration;
 import com.datum.clientmanagement.customer.CustomerCreatedEvent;
@@ -42,7 +43,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
-import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.rabbitmq.RabbitMQContainer;
 import tools.jackson.databind.JsonNode;
@@ -65,7 +65,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -422,18 +421,18 @@ class CustomerCreatedEventFunctionalTest {
     @Test
     @DisplayName("should declare the durable customer.events exchange and customer.created queue at startup")
     void topologyDeclaredAtStartup() throws Exception {
-        assertThat(rabbitctl("list_exchanges", "name", "type", "durable"))
+        assertThat(RabbitCtl.list(rabbitContainer, "list_exchanges", "name", "type", "durable"))
                 .anySatisfy(exchange -> {
                     assertThat(exchange.path("name").asString()).isEqualTo("customer.events");
                     assertThat(exchange.path("type").asString()).isEqualTo("topic");
                     assertThat(exchange.path("durable").asBoolean()).isTrue();
                 });
-        assertThat(rabbitctl("list_queues", "name", "durable"))
+        assertThat(RabbitCtl.list(rabbitContainer, "list_queues", "name", "durable"))
                 .anySatisfy(queue -> {
                     assertThat(queue.path("name").asString()).isEqualTo("customer.created");
                     assertThat(queue.path("durable").asBoolean()).isTrue();
                 });
-        assertThat(rabbitctl("list_bindings", "source_name", "destination_name", "routing_key"))
+        assertThat(RabbitCtl.list(rabbitContainer, "list_bindings", "source_name", "destination_name", "routing_key"))
                 .anySatisfy(binding -> {
                     assertThat(binding.path("source_name").asString()).isEqualTo("customer.events");
                     assertThat(binding.path("destination_name").asString()).isEqualTo("customer.created");
@@ -533,14 +532,6 @@ class CustomerCreatedEventFunctionalTest {
             message = rabbitTemplate.receive(QUEUE, PUBLISH_WINDOW_MS);
         }
         return messages;
-    }
-
-    private List<JsonNode> rabbitctl(String command, String... columns) throws Exception {
-        List<String> arguments = new ArrayList<>(List.of("rabbitmqctl", "--quiet", "--formatter", "json", command));
-        arguments.addAll(List.of(columns));
-        ExecResult result = rabbitContainer.execInContainer(arguments.toArray(String[]::new));
-        assertThat(result.getExitCode()).as(result.getStderr()).isZero();
-        return StreamSupport.stream(JSON.readTree(result.getStdout()).spliterator(), false).toList();
     }
 
     private static void runConcurrently(Runnable... tasks) throws Exception {

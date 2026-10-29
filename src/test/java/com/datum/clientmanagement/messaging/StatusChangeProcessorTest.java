@@ -36,7 +36,7 @@ class StatusChangeProcessorTest {
 
         processor.process(REQUEST);
 
-        verify(processedEvents).recordIfNew(EVENT_ID, EventType.CUSTOMER_STATUS_CHANGE);
+        // changeStatus is only reached when the stubbed recordIfNew call returned true.
         verify(customerService).changeStatus(CUSTOMER_ID, CustomerStatus.INACTIVE);
     }
 

@@ -112,8 +112,8 @@ Os valores padrão ficam em `application.yaml` e podem ser sobrescritos por vari
 | `OUTBOX_BATCH_SIZE` | Máximo de eventos reenviados por execução | `100` |
 | `OUTBOX_RETRY_WAIT_DURATION` / `OUTBOX_RETRY_BACKOFF_MULTIPLIER` / `OUTBOX_RETRY_MAX_WAIT_DURATION` | Espera após uma falha de reenvio (Resilience4j retry `outbox`: multiplicada a cada falha, até o máximo) | `1s` / `2` / `15s` |
 | `OUTBOX_RETRY_MAX_ATTEMPTS` | Falhas de reenvio até o evento desistir e virar "linha morta" (≈ 24 h no máximo de 15 s) | `5760` |
-| `STATUS_CHANGE_RETRY_MAX_RETRIES` | Retries de uma falha transitória no consumo de `CUSTOMER_STATUS_CHANGE` (total de tentativas = 1 + este valor) antes da DLQ | `2` |
-| `STATUS_CHANGE_RETRY_INITIAL_INTERVAL` / `STATUS_CHANGE_RETRY_MULTIPLIER` / `STATUS_CHANGE_RETRY_MAX_INTERVAL` | Backoff exponencial entre essas tentativas | `1s` / `2` / `10s` |
+| `RABBIT_LISTENER_RETRY_MAX_RETRIES` | Retries de uma falha transitória em qualquer listener RabbitMQ, hoje só o de `CUSTOMER_STATUS_CHANGE` (total de tentativas = 1 + este valor) antes da DLQ | `2` |
+| `RABBIT_LISTENER_RETRY_INITIAL_INTERVAL` / `RABBIT_LISTENER_RETRY_MULTIPLIER` / `RABBIT_LISTENER_RETRY_MAX_INTERVAL` | Backoff exponencial entre essas tentativas | `1s` / `2` / `10s` |
 
 ## Exemplos de utilização das APIs
 ```bash
