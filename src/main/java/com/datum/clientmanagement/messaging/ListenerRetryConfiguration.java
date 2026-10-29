@@ -8,13 +8,13 @@ import org.springframework.context.annotation.Configuration;
 import java.util.List;
 
 /**
- * NFR-9: the listener retry ({@code spring.rabbitmq.listener.simple.retry}: 3 attempts in total with exponential
- * backoff, then reject to the DLQ) applies only to transient failures. A message rejected as unprocessable
- * ({@link AmqpRejectAndDontRequeueException}, e.g. {@link InvalidStatusChangeException}) goes to the DLQ on its
- * first attempt.
+ * NFR-9, for every {@code @RabbitListener}: the listener retry ({@code spring.rabbitmq.listener.simple.retry}: 3
+ * attempts in total with exponential backoff, then reject to the DLQ) applies only to transient failures. A message
+ * rejected as unprocessable ({@link AmqpRejectAndDontRequeueException}, e.g. {@link InvalidStatusChangeException})
+ * goes to the DLQ on its first attempt.
  */
 @Configuration(proxyBeanMethods = false)
-class StatusChangeRetryConfiguration {
+class ListenerRetryConfiguration {
 
     // Spring Boot has no property for retry excludes. The retry policy matches them against the whole cause chain,
     // so the container's ListenerExecutionFailedException wrapper does not hide the rejection.

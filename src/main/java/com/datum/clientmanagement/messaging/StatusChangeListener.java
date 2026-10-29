@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
  * Consumes {@code customer.status-change} (ticket 07). Takes the raw message so a bad body becomes an
  * {@link InvalidStatusChangeException} (DLQ, no retry) instead of a converter error. Retries and the final
  * dead-lettering come from the listener container ({@code spring.rabbitmq.listener.simple.retry} and
- * {@link StatusChangeRetryConfiguration}).
+ * {@link ListenerRetryConfiguration}).
  */
 @Component
 class StatusChangeListener {
