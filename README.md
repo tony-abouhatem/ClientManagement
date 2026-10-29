@@ -2,7 +2,7 @@
 
 Microsserviço de gerenciamento de clientes: CRUD REST, consulta de score externo, segurança OAuth2/JWT (Keycloak) e eventos via RabbitMQ.
 
-> **Status:** em desenvolvimento. Este README descreve o comportamento planejado. Itens marcados **TBD** serão confirmados na implementação (ver as issues no GitHub).
+> **Status:** MVP implementado (tickets 01 a 08, ver as issues no GitHub). Este README descreve o comportamento atual, conferido contra a stack local do Docker Compose.
 
 ## Funcionalidades
 - Cadastro, alteração, exclusão e consulta de clientes (`/customers`).
@@ -47,9 +47,10 @@ docker compose up --build
 ```
 Ou a aplicação localmente, com as dependências já no ar:
 ```bash
-./mvnw spring-boot:run        # Windows: mvnw.cmd spring-boot:run
+./mvnw spring-boot:run        # Linux/macOS e Git Bash no Windows
+mvnw.cmd spring-boot:run      # Windows (cmd ou PowerShell: .\mvnw.cmd spring-boot:run)
 ```
-Health: http://localhost:8080/actuator/health · Swagger UI: http://localhost:8080/swagger-ui.html
+Health: http://localhost:8080/actuator/health · Swagger UI: http://localhost:8080/swagger-ui.html · OpenAPI: http://localhost:8080/v3/api-docs
 
 ## Como obter e usar o Access Token
 Usuários de teste do realm `client-management`:
@@ -66,29 +67,41 @@ curl -s -X POST http://localhost:8081/realms/client-management/protocol/openid-c
 ```
 - Use o `access_token` retornado no header `Authorization: Bearer <token>`.
 - O `client_id` é `client-management-cli` (cliente público com direct access grants).
-- A collection Postman em `postman/` já obtém o token automaticamente.
+- A collection Postman em `postman/` já obtém o token automaticamente (ver [Postman](#postman)).
+- No Swagger UI, clique em **Authorize** e cole apenas o `access_token` (sem o prefixo `Bearer`).
+- O token expira em 15 minutos (`accessTokenLifespan` do realm). Quando a API responder 401, peça um novo.
 
 ## Como executar os testes
 ```bash
 ./mvnw test      # testes unitários, funcionais e não funcionais (requer Docker em execução para Testcontainers)
 ./mvnw verify    # + relatório de cobertura JaCoCo em target/site/jacoco/index.html
+./mvnw test -Dtest=CustomerCrudFunctionalTest   # uma única classe
+```
+No Windows (cmd), use `mvnw.cmd` com os mesmos argumentos (no PowerShell, `.\mvnw.cmd`):
+```bat
+mvnw.cmd test
+mvnw.cmd verify
+mvnw.cmd test -Dtest=CustomerCrudFunctionalTest
 ```
 - Unitários: junto ao pacote testado.
 - Funcionais: `src/test/java/com/datum/clientmanagement/functional/`.
 - Não funcionais: `src/test/java/com/datum/clientmanagement/nonfunctional/`.
+- End-to-end contra a stack do compose já no ar: `./mvnw verify -Pe2e` (Windows: `.\mvnw.cmd verify -Pe2e`) roda a collection Postman com o newman (ver [Pela linha de comando](#pela-linha-de-comando--pe2e)).
 
 ## Endpoints disponíveis
 | Método | Caminho | Perfil | Sucesso | Erros |
 |--------|---------|--------|---------|-------|
 | POST | `/customers` | ADMIN | 201 | 400, 401, 403, 409 (CPF duplicado) |
 | PUT | `/customers/{id}` | ADMIN | 200 | 400 (inclui `version` ausente), 404, 409 (`version` divergente), 422 (troca de CPF) |
-| DELETE | `/customers/{id}` | ADMIN | 204 (também para id inexistente ou já excluído: idempotente) | — |
+| DELETE | `/customers/{id}` | ADMIN | 204 (também para id inexistente ou já excluído: idempotente) | 401, 403 |
 | GET | `/customers/{id}` | USER/ADMIN | 200 | 404 |
 | GET | `/customers?status=ACTIVE&name=&page=0&size=20` | USER/ADMIN | 200 | 400 |
 | GET | `/customers/search?name=joao&page=0&size=20` | USER/ADMIN | 200 | 400 |
 | GET | `/customers/{id}/score` | USER/ADMIN | 200 | 404, 502, 503, 504 |
 | GET | `/actuator/health` | público | 200 | 503 (banco ou RabbitMQ fora do ar) |
 
+- Documentação interativa: Swagger UI em http://localhost:8080/swagger-ui.html, com schemas de requisição/resposta e códigos de erro de cada endpoint. O documento OpenAPI fica em http://localhost:8080/v3/api-docs. Ambos são públicos; as chamadas feitas pelo Swagger UI precisam do token (**Authorize**).
+- Todo endpoint `/customers` responde 401 sem token válido (ausente, expirado, assinatura ou issuer inválidos). Um token só com o perfil USER recebe 403 em POST, PUT e DELETE.
 - Os erros seguem a RFC 7807 (`application/problem+json`).
 - Cliente inexistente: 404 com o título padrão `Not Found` e detalhe `No customer exists with id <id>.` (exceto DELETE, que é idempotente e retorna 204).
 - **Paginação:** os padrões são `page=0` e `size=20`. `page < 0`, `size < 1` ou `size > 100` resultam em 400, com `errors[]` indicando o campo (ex.: "size must be between 1 and 100").
@@ -101,19 +114,24 @@ Os valores padrão ficam em `application.yaml` e podem ser sobrescritos por vari
 
 | Variável | Descrição | Padrão (dev) |
 |----------|-----------|--------------|
+| `SERVER_PORT` | Porta HTTP da aplicação | `8080` |
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | PostgreSQL | `jdbc:postgresql://localhost:5432/clientmanagement` / `clientmanagement` / `clientmanagement` |
 | `RABBITMQ_HOST` / `RABBITMQ_PORT` / `RABBITMQ_USERNAME` / `RABBITMQ_PASSWORD` | RabbitMQ | `localhost` / `5672` / `guest` / `guest` |
 | `ISSUER_URI` | Issuer do Keycloak | `http://localhost:8081/realms/client-management` |
 | `JWK_SET_URI` | Chaves de assinatura do Keycloak (no compose: `http://keycloak:8080/...`) | `http://localhost:8081/realms/client-management/protocol/openid-connect/certs` |
 | `SCORE_BASE_URL` | Serviço de Score | `http://localhost:8089` |
 | `SCORE_CONNECT_TIMEOUT` / `SCORE_READ_TIMEOUT` | Timeouts | `1s` / `2s` |
+| `SCORE_RETRY_MAX_ATTEMPTS` / `SCORE_RETRY_WAIT_DURATION` / `SCORE_RETRY_BACKOFF_MULTIPLIER` | Retry do Score (Resilience4j retry `score`): total de tentativas, espera antes da 2ª tentativa e multiplicador do backoff. Só 5xx e timeouts são repetidos | `2` / `200ms` / `2` |
+| `SCORE_CB_SLIDING_WINDOW_SIZE` | Circuit breaker do Score: tamanho da janela (últimas N chamadas), que também é o mínimo de chamadas antes de o circuito poder abrir | `10` |
+| `SCORE_CB_FAILURE_RATE_THRESHOLD` / `SCORE_CB_WAIT_DURATION_IN_OPEN_STATE` | Percentual de falhas na janela que abre o circuito e tempo aberto (respondendo 503 sem chamar o Score) antes de testar de novo | `50` / `10s` |
+| `PAGINATION_DEFAULT_PAGE` / `PAGINATION_DEFAULT_SIZE` | Página e tamanho usados quando a listagem ou a busca omite `page`/`size` (o tamanho deve ficar entre 1 e 100) | `0` / `20` |
 | `RABBITMQ_CONFIRM_TIMEOUT` | Tempo máximo de espera pela confirmação do RabbitMQ antes de gravar o evento na outbox | `5s` |
 | `OUTBOX_RELAY_INTERVAL` | Intervalo do reenvio de eventos | `5s` |
 | `OUTBOX_BATCH_SIZE` | Máximo de eventos reenviados por execução | `100` |
 | `OUTBOX_RETRY_WAIT_DURATION` / `OUTBOX_RETRY_BACKOFF_MULTIPLIER` / `OUTBOX_RETRY_MAX_WAIT_DURATION` | Espera após uma falha de reenvio (Resilience4j retry `outbox`: multiplicada a cada falha, até o máximo) | `1s` / `2` / `15s` |
 | `OUTBOX_RETRY_MAX_ATTEMPTS` | Falhas de reenvio até o evento desistir e virar "linha morta" (≈ 24 h no máximo de 15 s) | `5760` |
-| `STATUS_CHANGE_RETRY_MAX_RETRIES` | Retries de uma falha transitória no consumo de `CUSTOMER_STATUS_CHANGE` (total de tentativas = 1 + este valor) antes da DLQ | `2` |
-| `STATUS_CHANGE_RETRY_INITIAL_INTERVAL` / `STATUS_CHANGE_RETRY_MULTIPLIER` / `STATUS_CHANGE_RETRY_MAX_INTERVAL` | Backoff exponencial entre essas tentativas | `1s` / `2` / `10s` |
+| `RABBIT_LISTENER_RETRY_MAX_RETRIES` | Retries de uma falha transitória em qualquer listener RabbitMQ, hoje só o de `CUSTOMER_STATUS_CHANGE` (total de tentativas = 1 + este valor) antes da DLQ | `2` |
+| `RABBIT_LISTENER_RETRY_INITIAL_INTERVAL` / `RABBIT_LISTENER_RETRY_MULTIPLIER` / `RABBIT_LISTENER_RETRY_MAX_INTERVAL` | Backoff exponencial entre essas tentativas | `1s` / `2` / `10s` |
 
 ## Exemplos de utilização das APIs
 ```bash
@@ -140,6 +158,8 @@ curl -H "Authorization: Bearer $TOKEN" "http://localhost:8080/customers?status=A
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/customers/1/score
 # → {"customerId":1,"cpf":"52998224725","score":750,"classification":"LOW_RISK"}
 ```
+> **Windows:** o `curl` nativo do Windows (inclusive o do Git Bash) envia os argumentos de `-d` na página de código do sistema, e não em UTF-8. Um nome acentuado como `João` chega inválido e a API responde 400 (`Failed to read request`). Grave o JSON em um arquivo UTF-8 e envie com `--data-binary @cliente.json`, ou use o Postman/Swagger UI.
+
 O WireMock do compose (`docker/wiremock/mappings/`) responde ao `GET /scores/{cpf}` conforme o CPF do cliente:
 
 | CPF | Resposta do Score | Resposta de `GET /customers/{id}/score` |
@@ -150,6 +170,49 @@ O WireMock do compose (`docker/wiremock/mappings/`) responde ao `GET /scores/{cp
 | `93541134780` | 200 com atraso de 3 s (acima do timeout de leitura de 2 s) | 504 |
 
 Qualquer outro CPF não tem stub, e o WireMock responde 404.
+
+### Postman
+Arquivos em `postman/`: a collection `ClientManagement.postman_collection.json` e o environment `ClientManagement.postman_environment.json` (`baseUrl` = http://localhost:8080, `keycloakUrl` = http://localhost:8081, `rabbitUrl` = http://localhost:15672, `rabbitUser` / `rabbitPassword` = `guest` / `guest`, os padrões do `docker-compose.yml`).
+
+1. Com a stack no ar, importe os dois arquivos no Postman (*Import*) e selecione o environment **ClientManagement**.
+2. Execute a collection inteira em ordem (*Run collection*). A pasta **Auth** obtém os tokens de USER e ADMIN no Keycloak e os guarda nas variáveis `userToken` e `adminToken`. As demais requisições usam esses tokens.
+3. A collection passa por todos os endpoints e confere os cenários 400, 401 (sem token), 403 (USER criando cliente), 404, 409 (CPF duplicado e `version` divergente), 422 (troca de CPF) e os quatro cenários de Score da tabela acima (200, 404, 503 e 504).
+4. A pasta **RabbitMQ** usa a API HTTP do RabbitMQ Management (basic auth com `rabbitUser` / `rabbitPassword`) para conferir:
+   - **CUSTOMER_CREATED publicado:** lê a fila `customer.created` e procura uma mensagem com `eventType` `CUSTOMER_CREATED` e o `customerId` do cliente principal. A leitura usa `ackmode` `ack_requeue_true`: todas as mensagens voltam para a fila, inclusive as de outros testes manuais.
+   - **CUSTOMER_STATUS_CHANGE consumido:** publica no exchange `customer.events` (routing key `customer.status.change`) um evento com `eventId` novo e o status oposto ao atual do cliente, confere `routed: true` e consulta o cliente (até 10 vezes, a cada 0,5 s) até ver o novo `status` com `version` + 1.
+   - **Idempotência:** publica de novo o mesmo `eventId`, agora com o status anterior, espera 2 s e confere que `status` e `version` não mudaram.
+
+   Limitação: a fila `customer.created` não tem consumidor, então cresce 5 mensagens a cada execução (o cliente principal e os 4 de Score). A leitura cobre as primeiras 1000 mensagens; se a fila passar disso, o teste falha pedindo para esvaziá-la (RabbitMQ Management → **Queues** → `customer.created` → *Purge Messages*).
+5. O cliente principal usa um CPF válido gerado a cada execução. Os clientes de Score usam os CPFs fixos do WireMock: antes de recriá-los, a pasta **Score** exclui qualquer cliente que já use um desses CPFs (entre os 100 primeiros da listagem), inclusive o criado pelos exemplos `curl` acima. A pasta **Cleanup** exclui tudo o que a collection criou.
+6. Cada execução registra 2 falhas (503 e 504) no circuit breaker do Score. A partir da 3ª execução seguida ele abre, e o Score passa a responder 503 (o cenário 504 falha). Nesse caso, aguarde 10 s (`SCORE_CB_WAIT_DURATION_IN_OPEN_STATE`) antes de rodar de novo.
+
+#### Pela linha de comando (`-Pe2e`)
+O profile Maven `e2e` roda a collection com o [newman](https://github.com/postmanlabs/newman) em Docker (imagem `postman/newman:6.1.3-alpine`, sem precisar de Node.js). Pré-requisito: a stack do compose já no ar (`docker compose up -d --build`).
+```bash
+./mvnw verify -Pe2e          # Linux/macOS e Git Bash no Windows
+```
+```bat
+.\mvnw.cmd verify -Pe2e      # Windows (PowerShell; no cmd: mvnw.cmd verify -Pe2e)
+```
+- Os testes JUnit são pulados nesse profile. Qualquer asserção da collection que falhe faz o build falhar.
+- O container do newman acessa a stack do host por `host.docker.internal`. As URLs podem ser trocadas com `-D`:
+
+  | Propriedade | Padrão |
+  |-------------|--------|
+  | `e2e.baseUrl` | `http://host.docker.internal:8080` |
+  | `e2e.keycloakUrl` | `http://host.docker.internal:8081` |
+  | `e2e.rabbitUrl` | `http://host.docker.internal:15672` |
+
+  Exemplo: `./mvnw verify -Pe2e -De2e.baseUrl=http://host.docker.internal:9090`. No PowerShell, coloque o argumento entre aspas: `.\mvnw.cmd verify -Pe2e "-De2e.baseUrl=http://host.docker.internal:9090"`.
+- O `./mvnw verify` sem o profile continua igual: roda os testes JUnit e não chama o newman.
+
+O mesmo comando, sem o Maven (no Git Bash, `MSYS_NO_PATHCONV=1` evita a conversão do caminho do volume):
+```bash
+MSYS_NO_PATHCONV=1 docker run --rm --add-host=host.docker.internal:host-gateway -v "$(pwd)/postman:/etc/newman" \
+  postman/newman:6.1.3-alpine run ClientManagement.postman_collection.json -e ClientManagement.postman_environment.json \
+  --env-var baseUrl=http://host.docker.internal:8080 --env-var keycloakUrl=http://host.docker.internal:8081 \
+  --env-var rabbitUrl=http://host.docker.internal:15672
+```
 
 ## Funcionamento da integração com RabbitMQ
 - **Exchange** `customer.events` (topic).
@@ -181,7 +244,16 @@ Qualquer outro CPF não tem stub, e o WireMock responde 404.
   ```json
   {"eventId":"cbca5352-...","eventType":"CUSTOMER_STATUS_CHANGE","customerId":123,"status":"INACTIVE"}
   ```
-- Para testar: RabbitMQ Management → Exchanges → `customer.events` → *Publish message*.
+- Para testar pelo RabbitMQ Management (RabbitMQ Management → Exchanges → `customer.events` → *Publish message*):
+  1. Abra http://localhost:15672 e entre com `guest` / `guest`.
+  2. Na aba **Exchanges**, clique em `customer.events`.
+  3. Expanda **Publish message** e preencha **Routing key** com `customer.status.change`. As propriedades e os headers podem ficar vazios: o corpo é sempre lido como JSON.
+  4. Em **Payload**, cole a mensagem abaixo, trocando `customerId` pelo id de um cliente existente. O `eventId` deve ser um UUID; use um novo a cada alteração.
+     ```json
+     {"eventId":"3f0c2a4e-9b1d-4c7a-8e55-2d6f1a9b7c10","eventType":"CUSTOMER_STATUS_CHANGE","customerId":1,"status":"INACTIVE"}
+     ```
+  5. Clique em **Publish message**. O RabbitMQ mostra "Message published."
+  6. Confira com `GET /customers/1`: o `status` passa a `INACTIVE` e o `version` aumenta. Publicar de novo o mesmo `eventId` não altera nada (idempotência). Uma mensagem inválida (por exemplo, `customerId` inexistente) aparece na fila `customer.status-change.dlq` (aba **Queues**).
 
 ## Estrutura do projeto
 ```
@@ -189,7 +261,7 @@ src/main/java/com/datum/clientmanagement/   customer, messaging, security, commo
 src/main/resources/db/migration/            migrações Flyway
 src/test/java/com/datum/clientmanagement/   unitários, functional/, nonfunctional/
 docker/                                     realm Keycloak, stubs WireMock
-postman/                                    collection Postman
+postman/                                    collection e environment Postman
 docs/                                       PRODUCT, ARCHITECTURE
 ```
 

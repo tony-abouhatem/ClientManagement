@@ -64,7 +64,7 @@ Evaluators need to see how a candidate handles a realistic service: CRUD, securi
 | ID | Area | Target |
 |----|------|--------|
 | NFR-1 | Security | Every `/customers/**` request without a valid JWT returns **401** with `application/problem+json`. A USER calling POST/PUT/DELETE gets **403**. An expired token or one with a bad signature or wrong issuer gets 401. |
-| NFR-2 | Security | Only `/actuator/health/**`, `/v3/api-docs/**` and `/swagger-ui/**` are public. |
+| NFR-2 | Security | Only `/actuator/health/**`, `/v3/api-docs/**`, `/swagger-ui/**` and `/swagger-ui.html` (the redirect to the Swagger UI) are public. |
 | NFR-3 | Privacy | CPF never appears unmasked in application logs. Only the last 2 digits are visible, e.g. `*********25`. |
 | NFR-4 | Resilience (Score) | Connect timeout 1 s, read timeout 2 s, at most 2 attempts with backoff, retried only on 5xx and timeouts. `GET /customers/{id}/score` responds in **≤ 5 s** even if Score never answers. |
 | NFR-5 | Resilience (Score) | Status mapping: Score unavailable (connection refused, **connect timeout**, 5xx after retries, circuit open) → **503**. Only a **read timeout** (slow response) → **504**. Score 404 → **404** with a distinct problem `title`. Malformed Score response → **502**. |
