@@ -1,7 +1,7 @@
 /*
  * Ticket: 07 (GitHub issue #8)
  *
- * Interfaces under test (do not exist yet):
+ * Interfaces under test:
  *   - AMQP listener on queue "customer.status-change" (bound to exchange "customer.events",
  *     routing key "customer.status.change", DLX "customer.dlx" -> queue "customer.status-change.dlq")
  *   - Payload: {"eventId":<UUID>,"eventType":"CUSTOMER_STATUS_CHANGE","customerId":<id>,"status":"ACTIVE|INACTIVE"}
@@ -13,11 +13,112 @@
  */
 package com.datum.clientmanagement.functional;
 
-import org.junit.jupiter.api.Disabled;
+import com.datum.clientmanagement.RabbitCtl;
+import com.datum.clientmanagement.TestcontainersConfiguration;
+import com.datum.clientmanagement.messaging.MessagingTopology;
+import com.datum.clientmanagement.messaging.StatusChangeMessageParser;
+import com.datum.clientmanagement.messaging.StatusChangeProcessor;
+import com.rabbitmq.client.AMQP;
+import org.awaitility.Awaitility;
+import org.awaitility.core.ThrowingRunnable;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.amqp.core.AmqpAdmin;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageProperties;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.rabbitmq.RabbitMQContainer;
+import tools.jackson.databind.JsonNode;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+// Two consumers with one unacked message each, so two deliveries can really be processed at the same time.
+@SpringBootTest(properties = {
+        "spring.rabbitmq.listener.simple.concurrency=2",
+        "spring.rabbitmq.listener.simple.prefetch=1"})
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+@Import(TestcontainersConfiguration.class)
+@Testcontainers(disabledWithoutDocker = true)
+@SuppressWarnings({"SqlResolve", "SqlNoDataSourceInspection"}) // IDE has no database; the SQL runs against Testcontainers Postgres
 class StatusChangeConsumerFunctionalTest {
+
+    private static final String QUEUE = MessagingTopology.STATUS_CHANGE_QUEUE;
+    private static final String DLQ = MessagingTopology.STATUS_CHANGE_DEAD_LETTER_QUEUE;
+    private static final String EVENT_TYPE = "CUSTOMER_STATUS_CHANGE";
+    private static final String CPF = "52998224725";
+    private static final long UNKNOWN_CUSTOMER_ID = 999_999L;
+    private static final Duration EVENTUALLY = Duration.ofSeconds(5);
+    // A transient failure waits 1 s + 2 s between its 3 attempts before the message is dead-lettered.
+    private static final Duration RETRIES_EXHAUSTED = Duration.ofSeconds(15);
+    private static final long VERIFY_TIMEOUT_MS = 5_000;
+    private static final long CONCURRENT_ARRIVAL_SECONDS = 5;
+    private static final String INSERT_CUSTOMER = "INSERT INTO customers"
+            + " (name, name_normalized, cpf, email, status, created_at, updated_at)"
+            + " VALUES ('Ana Souza', 'ana souza', ?, 'ana@example.com', ?, now(), now()) RETURNING id";
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    @Autowired
+    private AmqpAdmin amqpAdmin;
+
+    @Autowired
+    private RabbitMQContainer rabbitContainer;
+
+    // Each listener invocation (first delivery or retry) parses the message first, so this counts attempts.
+    @MockitoSpyBean
+    private StatusChangeMessageParser parser;
+
+    @MockitoSpyBean
+    private StatusChangeProcessor processor;
+
+    @BeforeEach
+    void cleanState() {
+        jdbcTemplate.update("DELETE FROM processed_events");
+        jdbcTemplate.update("DELETE FROM customers");
+        amqpAdmin.purgeQueue(QUEUE, false);
+        amqpAdmin.purgeQueue(DLQ, false);
+    }
 
     // AC-1 (ticket 07)
     // Given customer X (cpf 52998224725) with status ACTIVE
@@ -27,9 +128,25 @@ class StatusChangeConsumerFunctionalTest {
     //  And processed_events has exactly 1 row with event_id 3f1c2a9e-6b1d-4f6e-9a0b-1c2d3e4f5a60 and event_type "CUSTOMER_STATUS_CHANGE"
     //  And "customer.status-change.dlq" has 0 messages
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should set the customer INACTIVE and record the eventId when a valid status change is consumed")
-    void validStatusChange_isApplied() { }
+    void validStatusChange_isApplied() {
+        long customerId = insertCustomer("ACTIVE");
+        UUID eventId = UUID.fromString("3f1c2a9e-6b1d-4f6e-9a0b-1c2d3e4f5a60");
+
+        publish(statusChange(eventId, customerId, "INACTIVE"));
+
+        eventually(() -> mockMvc.perform(get("/customers/" + customerId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("INACTIVE")));
+        assertThat(jdbcTemplate.queryForList("SELECT event_id, event_type FROM processed_events"))
+                .singleElement()
+                .satisfies(row -> {
+                    assertThat(row.get("event_id")).isEqualTo(eventId);
+                    assertThat(row.get("event_type")).isEqualTo(EVENT_TYPE);
+                });
+        assertThat(messageCount(DLQ)).isZero();
+    }
 
     // AC-2 (ticket 07) / NFR-8
     // Given customer X ACTIVE
@@ -39,9 +156,23 @@ class StatusChangeConsumerFunctionalTest {
     //  And queue "customer.status-change" is empty (all 3 acked) and the DLQ has 0 messages
     //  And the customer's version advanced by exactly 1
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should apply the change once and ack every delivery when the same message arrives 3 times")
-    void duplicateDeliveries_appliedOnce() { }
+    void duplicateDeliveries_appliedOnce() {
+        long customerId = insertCustomer("ACTIVE");
+        UUID eventId = UUID.fromString("7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d");
+        String message = statusChange(eventId, customerId, "INACTIVE");
+
+        publish(message);
+        publish(message);
+        publish(message);
+
+        verify(processor, timeout(VERIFY_TIMEOUT_MS).times(3)).process(any());
+        eventually(() -> assertThat(messageCount(QUEUE)).isZero());
+        assertThat(statusOf(customerId)).isEqualTo("INACTIVE");
+        assertThat(processedRows(eventId)).isEqualTo(1);
+        assertThat(messageCount(DLQ)).isZero();
+        assertThat(versionOf(customerId)).isEqualTo(1);
+    }
 
     // AC-3 (ticket 07)
     // Given customer X ACTIVE
@@ -51,9 +182,25 @@ class StatusChangeConsumerFunctionalTest {
     // Then customer X ends with status ACTIVE (E1 replay does not revert it)
     //  And processed_events has exactly 2 rows (E1, E2)
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should not revert the status when an old eventId is redelivered after a newer change")
-    void replayedOldEvent_doesNotRevert() { }
+    void replayedOldEvent_doesNotRevert() {
+        long customerId = insertCustomer("ACTIVE");
+        String first = statusChange(UUID.fromString("11111111-1111-4111-8111-111111111111"), customerId, "INACTIVE");
+        String second = statusChange(UUID.fromString("22222222-2222-4222-8222-222222222222"), customerId, "ACTIVE");
+
+        publish(first);
+        eventually(() -> assertThat(statusOf(customerId)).isEqualTo("INACTIVE"));
+        publish(second);
+        eventually(() -> assertThat(statusOf(customerId)).isEqualTo("ACTIVE"));
+        publish(first);
+
+        verify(processor, timeout(VERIFY_TIMEOUT_MS).times(3)).process(any());
+        eventually(() -> assertThat(messageCount(QUEUE)).isZero());
+        assertThat(statusOf(customerId)).isEqualTo("ACTIVE");
+        assertThat(jdbcTemplate.queryForList("SELECT event_id FROM processed_events", UUID.class))
+                .containsExactlyInAnyOrder(UUID.fromString("11111111-1111-4111-8111-111111111111"),
+                        UUID.fromString("22222222-2222-4222-8222-222222222222"));
+    }
 
     // AC-4 (ticket 07) / NFR-9
     // Given customer X ACTIVE
@@ -68,9 +215,31 @@ class StatusChangeConsumerFunctionalTest {
     //  And the listener processed each one exactly once (no retry)
     //  And customer X is still ACTIVE and processed_events has 0 rows
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should send the message straight to the DLQ when it is malformed, incomplete, has an invalid status or wrong eventType")
-    void invalidMessage_goesToDlqWithoutRetry() { }
+    void invalidMessage_goesToDlqWithoutRetry() {
+        long customerId = insertCustomer("ACTIVE");
+        List<String> invalidMessages = List.of(
+                "{not json",
+                "{\"eventType\":\"CUSTOMER_STATUS_CHANGE\",\"customerId\":" + customerId + ",\"status\":\"INACTIVE\"}",
+                "{\"eventId\":\"" + UUID.randomUUID() + "\",\"eventType\":\"CUSTOMER_STATUS_CHANGE\",\"status\":\"INACTIVE\"}",
+                "{\"eventId\":\"" + UUID.randomUUID() + "\",\"eventType\":\"CUSTOMER_STATUS_CHANGE\",\"customerId\":"
+                        + customerId + "}",
+                statusChange(UUID.randomUUID(), customerId, "BLOCKED"),
+                "{\"eventId\":\"" + UUID.randomUUID() + "\",\"eventType\":\"CUSTOMER_CREATED\",\"customerId\":"
+                        + customerId + ",\"status\":\"INACTIVE\"}");
+
+        for (int index = 0; index < invalidMessages.size(); index++) {
+            int published = index + 1;
+            publish(invalidMessages.get(index));
+            eventually(() -> assertThat(messageCount(DLQ)).isEqualTo(published));
+            verify(parser, times(published)).parse(any());
+        }
+
+        assertThat(drain(DLQ)).containsExactlyInAnyOrderElementsOf(invalidMessages);
+        verify(processor, never()).process(any());
+        assertThat(statusOf(customerId)).isEqualTo("ACTIVE");
+        assertThat(processedRowCount()).isZero();
+    }
 
     // AC-5 (ticket 07) / NFR-9
     // Given no customer with id 999999
@@ -79,9 +248,18 @@ class StatusChangeConsumerFunctionalTest {
     // Then the message eventually lands on "customer.status-change.dlq" with no retry
     //  And processed_events has no row with that eventId
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should send the message to the DLQ and record nothing when the customerId is unknown")
-    void unknownCustomer_goesToDlq() { }
+    void unknownCustomer_goesToDlq() {
+        UUID eventId = UUID.fromString("44444444-4444-4444-8444-444444444444");
+        String message = statusChange(eventId, UNKNOWN_CUSTOMER_ID, "INACTIVE");
+
+        publish(message);
+
+        eventually(() -> assertThat(messageCount(DLQ)).isEqualTo(1));
+        verify(processor, times(1)).process(any());
+        assertThat(drain(DLQ)).containsExactly(message);
+        assertThat(processedRows(eventId)).isZero();
+    }
 
     // AC-6 (ticket 07) / NFR-9
     // Given customer X ACTIVE and the processing step throws a transient exception (e.g. DataAccessResourceFailureException)
@@ -91,9 +269,20 @@ class StatusChangeConsumerFunctionalTest {
     //  And the message then lands on "customer.status-change.dlq" (exactly 1 message there)
     //  And customer X is still ACTIVE and processed_events has no row for that eventId
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should try exactly 3 times then send to the DLQ when a transient failure persists")
-    void persistentTransientFailure_goesToDlqAfter3Attempts() { }
+    void persistentTransientFailure_goesToDlqAfter3Attempts() {
+        long customerId = insertCustomer("ACTIVE");
+        UUID eventId = UUID.fromString("55555555-5555-4555-8555-555555555555");
+        doThrow(new DataAccessResourceFailureException("simulated database outage")).when(processor).process(any());
+
+        publish(statusChange(eventId, customerId, "INACTIVE"));
+
+        // The message is dead-lettered only after the last attempt, so no further attempt can follow.
+        Awaitility.await().atMost(RETRIES_EXHAUSTED).untilAsserted(() -> assertThat(messageCount(DLQ)).isEqualTo(1));
+        verify(processor, times(3)).process(any());
+        assertThat(statusOf(customerId)).isEqualTo("ACTIVE");
+        assertThat(processedRows(eventId)).isZero();
+    }
 
     // AC-6 (ticket 07)
     // Given customer X ACTIVE and the processing step throws a transient exception on the 1st and 2nd attempts,
@@ -103,9 +292,23 @@ class StatusChangeConsumerFunctionalTest {
     //  And customer X eventually becomes INACTIVE, its version advanced by exactly 1
     //  And processed_events has exactly 1 row for that eventId and the DLQ has 0 messages
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should apply the change once when the third and last attempt succeeds after two transient failures")
-    void transientFailureRecoversOnThirdAttempt_appliedOnce() { }
+    void transientFailureRecoversOnThirdAttempt_appliedOnce() {
+        long customerId = insertCustomer("ACTIVE");
+        UUID eventId = UUID.fromString("66666666-6666-4666-8666-666666666666");
+        DataAccessResourceFailureException outage = new DataAccessResourceFailureException("simulated database outage");
+        doThrow(outage).doThrow(outage).doCallRealMethod().when(processor).process(any());
+
+        publish(statusChange(eventId, customerId, "INACTIVE"));
+
+        Awaitility.await().atMost(RETRIES_EXHAUSTED)
+                .untilAsserted(() -> assertThat(statusOf(customerId)).isEqualTo("INACTIVE"));
+        eventually(() -> assertThat(messageCount(QUEUE)).isZero());
+        verify(processor, times(3)).process(any());
+        assertThat(versionOf(customerId)).isEqualTo(1);
+        assertThat(processedRows(eventId)).isEqualTo(1);
+        assertThat(messageCount(DLQ)).isZero();
+    }
 
     // AC-7 (ticket 07)
     // Given customer X already INACTIVE with version V
@@ -115,9 +318,20 @@ class StatusChangeConsumerFunctionalTest {
     //  And processed_events has 1 row for that eventId
     //  And customer X is still INACTIVE
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should record the event and ack as a no-op when the status already matches")
-    void sameStatus_isNoOpButRecorded() { }
+    void sameStatus_isNoOpButRecorded() {
+        long customerId = insertCustomer("INACTIVE");
+        long versionBefore = versionOf(customerId);
+        UUID eventId = UUID.fromString("77777777-7777-4777-8777-777777777777");
+
+        publish(statusChange(eventId, customerId, "INACTIVE"));
+
+        eventually(() -> assertThat(processedRows(eventId)).isEqualTo(1));
+        eventually(() -> assertThat(messageCount(QUEUE)).isZero());
+        assertThat(messageCount(DLQ)).isZero();
+        assertThat(statusOf(customerId)).isEqualTo("INACTIVE");
+        assertThat(versionOf(customerId)).isEqualTo(versionBefore);
+    }
 
     // AC-8 (ticket 07)
     // Given a fresh RabbitMQ with no topology
@@ -125,10 +339,36 @@ class StatusChangeConsumerFunctionalTest {
     // Then queue "customer.status-change" exists, durable, with argument x-dead-letter-exchange == "customer.dlx"
     //  And it is bound to exchange "customer.events" with routing key "customer.status.change"
     //  And exchange "customer.dlx" exists and queue "customer.status-change.dlq" exists, durable, bound to it
+    // The container is created with this test context and nothing declares the topology except the app.
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should declare and bind the status-change queue with DLX and the DLQ at startup")
-    void topologyDeclaredAtStartup() { }
+    void topologyDeclaredAtStartup() {
+        assertThat(RabbitCtl.list(rabbitContainer, "list_queues", "name", "durable", "arguments"))
+                .anySatisfy(queue -> {
+                    assertThat(queue.path("name").asString()).isEqualTo("customer.status-change");
+                    assertThat(queue.path("durable").asBoolean()).isTrue();
+                    assertThat(queueArgument(queue, "x-dead-letter-exchange")).isEqualTo("customer.dlx");
+                })
+                .anySatisfy(queue -> {
+                    assertThat(queue.path("name").asString()).isEqualTo("customer.status-change.dlq");
+                    assertThat(queue.path("durable").asBoolean()).isTrue();
+                });
+        assertThat(RabbitCtl.list(rabbitContainer, "list_exchanges", "name", "durable"))
+                .anySatisfy(exchange -> {
+                    assertThat(exchange.path("name").asString()).isEqualTo("customer.dlx");
+                    assertThat(exchange.path("durable").asBoolean()).isTrue();
+                });
+        assertThat(RabbitCtl.list(rabbitContainer, "list_bindings", "source_name", "destination_name", "routing_key"))
+                .anySatisfy(binding -> {
+                    assertThat(binding.path("source_name").asString()).isEqualTo("customer.events");
+                    assertThat(binding.path("destination_name").asString()).isEqualTo("customer.status-change");
+                    assertThat(binding.path("routing_key").asString()).isEqualTo("customer.status.change");
+                })
+                .anySatisfy(binding -> {
+                    assertThat(binding.path("source_name").asString()).isEqualTo("customer.dlx");
+                    assertThat(binding.path("destination_name").asString()).isEqualTo("customer.status-change.dlq");
+                });
+    }
 
     // Edge case (ticket 07)
     // Given customer X ACTIVE
@@ -137,16 +377,114 @@ class StatusChangeConsumerFunctionalTest {
     // Then processed_events has exactly 1 row for that eventId, customer X is INACTIVE,
     //      both deliveries are acked and the DLQ has 0 messages
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should apply once and ack both when two duplicate deliveries are processed concurrently")
-    void concurrentDuplicates_appliedOnce() { }
+    void concurrentDuplicates_appliedOnce() {
+        long customerId = insertCustomer("ACTIVE");
+        UUID eventId = UUID.fromString("88888888-8888-4888-8888-888888888888");
+        String message = statusChange(eventId, customerId, "INACTIVE");
+        // Each delivery waits until the other one has arrived too, then both race into the transaction.
+        CountDownLatch bothArrived = new CountDownLatch(2);
+        AtomicBoolean ranConcurrently = new AtomicBoolean(true);
+        doAnswer(invocation -> {
+            bothArrived.countDown();
+            if (!bothArrived.await(CONCURRENT_ARRIVAL_SECONDS, TimeUnit.SECONDS)) {
+                ranConcurrently.set(false);
+            }
+            return invocation.callRealMethod();
+        }).when(processor).process(any());
+
+        publish(message);
+        publish(message);
+
+        verify(processor, timeout(VERIFY_TIMEOUT_MS * 2).times(2)).process(any());
+        eventually(() -> assertThat(messageCount(QUEUE)).isZero());
+        assertThat(ranConcurrently).as("both deliveries were in flight at the same time").isTrue();
+        assertThat(processedRows(eventId)).isEqualTo(1);
+        assertThat(statusOf(customerId)).isEqualTo("INACTIVE");
+        assertThat(versionOf(customerId)).isEqualTo(1);
+        assertThat(messageCount(DLQ)).isZero();
+    }
 
     // Edge case (ticket 07)
     // Given customer X ACTIVE
     // When a valid INACTIVE message (eventId "99999999-9999-4999-8999-999999999999") is published WITHOUT a content_type header
     // Then customer X eventually becomes INACTIVE and the DLQ has 0 messages
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should parse the body as JSON when the content_type header is missing")
-    void missingContentType_isParsedAsJson() { }
+    void missingContentType_isParsedAsJson() {
+        long customerId = insertCustomer("ACTIVE");
+        byte[] body = statusChange(UUID.fromString("99999999-9999-4999-8999-999999999999"), customerId, "INACTIVE")
+                .getBytes(StandardCharsets.UTF_8);
+
+        // A raw publish with empty properties: RabbitTemplate would always set a content_type.
+        rabbitTemplate.execute(channel -> {
+            channel.basicPublish(MessagingTopology.CUSTOMER_EVENTS_EXCHANGE, MessagingTopology.STATUS_CHANGE_ROUTING_KEY,
+                    new AMQP.BasicProperties(), body);
+            return null;
+        });
+
+        eventually(() -> assertThat(statusOf(customerId)).isEqualTo("INACTIVE"));
+        assertThat(messageCount(DLQ)).isZero();
+    }
+
+    private long insertCustomer(String status) {
+        return jdbcTemplate.queryForObject(INSERT_CUSTOMER, Long.class, CPF, status);
+    }
+
+    private static String statusChange(UUID eventId, long customerId, String status) {
+        return "{\"eventId\":\"" + eventId + "\",\"eventType\":\"" + EVENT_TYPE + "\",\"customerId\":" + customerId
+                + ",\"status\":\"" + status + "\"}";
+    }
+
+    private void publish(String body) {
+        MessageProperties properties = new MessageProperties();
+        properties.setContentType(MessageProperties.CONTENT_TYPE_JSON);
+        rabbitTemplate.send(MessagingTopology.CUSTOMER_EVENTS_EXCHANGE, MessagingTopology.STATUS_CHANGE_ROUTING_KEY,
+                new Message(body.getBytes(StandardCharsets.UTF_8), properties));
+    }
+
+    private List<String> drain(String queue) {
+        List<String> bodies = new ArrayList<>();
+        Message message = rabbitTemplate.receive(queue);
+        while (message != null) {
+            bodies.add(new String(message.getBody(), StandardCharsets.UTF_8));
+            message = rabbitTemplate.receive(queue);
+        }
+        return bodies;
+    }
+
+    private long messageCount(String queue) {
+        return RabbitCtl.messageCount(rabbitContainer, queue);
+    }
+
+    private String statusOf(long customerId) {
+        return jdbcTemplate.queryForObject("SELECT status FROM customers WHERE id = ?", String.class, customerId);
+    }
+
+    private long versionOf(long customerId) {
+        return jdbcTemplate.queryForObject("SELECT version FROM customers WHERE id = ?", Long.class, customerId);
+    }
+
+    private long processedRows(UUID eventId) {
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM processed_events WHERE event_id = ?", Long.class,
+                eventId);
+    }
+
+    private long processedRowCount() {
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM processed_events", Long.class);
+    }
+
+    // rabbitmqctl lists queue arguments as [name, type, value] triples.
+    private static String queueArgument(JsonNode queue, String name) {
+        for (JsonNode argument : queue.path("arguments")) {
+            if (name.equals(argument.path(0).asString())) {
+                return argument.path(2).asString();
+            }
+        }
+        return null;
+    }
+
+    private static void eventually(ThrowingRunnable assertion) {
+        Awaitility.await().atMost(EVENTUALLY).untilAsserted(assertion);
+    }
 }

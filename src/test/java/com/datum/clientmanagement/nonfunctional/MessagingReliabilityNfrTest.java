@@ -7,31 +7,38 @@
  */
 package com.datum.clientmanagement.nonfunctional;
 
+import com.datum.clientmanagement.RabbitCtl;
 import com.datum.clientmanagement.RabbitOutage;
 import com.datum.clientmanagement.RestartableRabbitConfiguration;
 import com.datum.clientmanagement.messaging.MessagingTopology;
+import com.datum.clientmanagement.messaging.StatusChangeMessageParser;
+import com.datum.clientmanagement.messaging.StatusChangeProcessor;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.AmqpAdmin;
 import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.rabbitmq.RabbitMQContainer;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.charset.StandardCharsets;
@@ -41,8 +48,14 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -61,6 +74,15 @@ class MessagingReliabilityNfrTest {
     private static final Duration POLL_INTERVAL = Duration.ofMillis(200);
     private static final List<String> OUTAGE_CPFS = List.of("11144477735", "39053344705", "93541134780");
     private static final JsonMapper JSON = JsonMapper.builder().build();
+    private static final String STATUS_CHANGE_QUEUE = MessagingTopology.STATUS_CHANGE_QUEUE;
+    private static final String STATUS_CHANGE_DLQ = MessagingTopology.STATUS_CHANGE_DEAD_LETTER_QUEUE;
+    private static final int SAME_EVENT_DELIVERIES = 10;
+    private static final long UNKNOWN_CUSTOMER_ID = 999_999L;
+    private static final long VERIFY_TIMEOUT_MS = 10_000;
+    private static final Duration EVENTUALLY = Duration.ofSeconds(5);
+    // 3 attempts with 1 s and 2 s backoff in between, plus processing time.
+    private static final Duration RETRIES_EXHAUSTED = Duration.ofSeconds(15);
+    private static final Duration NO_FOURTH_ATTEMPT_WINDOW = Duration.ofSeconds(5);
 
     @Autowired
     private MockMvc mockMvc;
@@ -77,11 +99,27 @@ class MessagingReliabilityNfrTest {
     @Autowired
     private RabbitOutage rabbitOutage;
 
+    @Autowired
+    private RabbitMQContainer rabbitContainer;
+
+    @Autowired
+    private RabbitListenerEndpointRegistry listenerContainers;
+
+    // Counting hook: every listener invocation (first delivery or retry) parses the message first.
+    @MockitoSpyBean
+    private StatusChangeMessageParser statusChangeParser;
+
+    @MockitoSpyBean
+    private StatusChangeProcessor statusChangeProcessor;
+
     @BeforeEach
     void cleanState() {
         jdbcTemplate.update("DELETE FROM outbox_events");
+        jdbcTemplate.update("DELETE FROM processed_events");
         jdbcTemplate.update("DELETE FROM customers");
         amqpAdmin.purgeQueue(QUEUE, false);
+        amqpAdmin.purgeQueue(STATUS_CHANGE_QUEUE, false);
+        amqpAdmin.purgeQueue(STATUS_CHANGE_DLQ, false);
     }
 
     @AfterEach
@@ -182,18 +220,48 @@ class MessagingReliabilityNfrTest {
     //  And processed_events has exactly 1 row for that eventId
     //  And the DLQ is empty
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should apply exactly one change and one processed_events row when the same eventId arrives 10 times")
-    void sameEventIdNTimes_appliedOnce() { }
+    void sameEventIdNTimes_appliedOnce() throws Exception {
+        long customerId = createCustomer("52998224725");
+        UUID eventId = UUID.fromString("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+        String message = statusChange(eventId, customerId, "INACTIVE");
+
+        for (int delivery = 0; delivery < SAME_EVENT_DELIVERIES; delivery++) {
+            publishStatusChange(message);
+        }
+
+        verify(statusChangeProcessor, timeout(VERIFY_TIMEOUT_MS).times(SAME_EVENT_DELIVERIES)).process(any());
+        awaitAllAcked();
+        assertThat(customerStatusOf(customerId)).isEqualTo("INACTIVE");
+        assertThat(customerVersionOf(customerId)).isEqualTo(1);
+        assertThat(processedRows(eventId)).isEqualTo(1);
+        assertThat(messageCount(STATUS_CHANGE_DLQ)).isZero();
+    }
 
     // NFR-8:idempotency (across restarts)
     // Given eventId "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" was processed and the listener container is then stopped and restarted
     // When the same message is delivered again
     // Then it is acked as a duplicate and processed_events still has 1 row for it
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should still detect a duplicate eventId after the listener restarts")
-    void dedupSurvivesRestart() { }
+    void dedupSurvivesRestart() throws Exception {
+        long customerId = createCustomer("52998224725");
+        UUID eventId = UUID.fromString("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+        String message = statusChange(eventId, customerId, "INACTIVE");
+        publishStatusChange(message);
+        Awaitility.await().atMost(EVENTUALLY).untilAsserted(() -> assertThat(processedRows(eventId)).isEqualTo(1));
+        awaitAllAcked();
+
+        listenerContainers.stop();
+        listenerContainers.start();
+        publishStatusChange(message);
+
+        verify(statusChangeProcessor, timeout(VERIFY_TIMEOUT_MS).times(2)).process(any());
+        awaitAllAcked();
+        assertThat(processedRows(eventId)).isEqualTo(1);
+        assertThat(customerVersionOf(customerId)).isEqualTo(1);
+        assertThat(messageCount(STATUS_CHANGE_DLQ)).isZero();
+    }
 
     // NFR-9:reliability (transient retry) — 3 attempts in total = first delivery + 2 retries
     // Given customer X ACTIVE and a processing step that always throws a transient DB exception
@@ -204,18 +272,56 @@ class MessagingReliabilityNfrTest {
     //  And the message then lands on "customer.status-change.dlq" exactly once
     //  And customer X is still ACTIVE and processed_events has no row for that eventId
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should attempt a transient failure exactly 3 times with growing backoff and then dead-letter it")
-    void transientFailure_retriedThenDlq() { }
+    void transientFailure_retriedThenDlq() throws Exception {
+        long customerId = createCustomer("52998224725");
+        UUID eventId = UUID.fromString("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
+        List<Long> attemptNanos = new CopyOnWriteArrayList<>();
+        doAnswer(invocation -> {
+            attemptNanos.add(System.nanoTime());
+            throw new DataAccessResourceFailureException("simulated database outage");
+        }).when(statusChangeProcessor).process(any());
+
+        publishStatusChange(statusChange(eventId, customerId, "INACTIVE"));
+
+        Awaitility.await().atMost(RETRIES_EXHAUSTED).pollInterval(POLL_INTERVAL)
+                .untilAsserted(() -> assertThat(messageCount(STATUS_CHANGE_DLQ)).isEqualTo(1));
+        assertThat(attemptNanos).hasSize(3);
+        // The DLQ got the message right after the 3rd attempt; nothing may follow it for 5 s.
+        Awaitility.await().pollDelay(NO_FOURTH_ATTEMPT_WINDOW).atMost(NO_FOURTH_ATTEMPT_WINDOW.plusSeconds(1))
+                .untilAsserted(() -> assertThat(attemptNanos).hasSize(3));
+        long firstGap = attemptNanos.get(1) - attemptNanos.get(0);
+        long secondGap = attemptNanos.get(2) - attemptNanos.get(1);
+        assertThat(firstGap).isPositive();
+        assertThat(secondGap).isGreaterThan(firstGap);
+        assertThat(messageCount(STATUS_CHANGE_DLQ)).isEqualTo(1);
+        assertThat(customerStatusOf(customerId)).isEqualTo("ACTIVE");
+        assertThat(processedRows(eventId)).isZero();
+    }
 
     // NFR-9:reliability (no retry for poison messages)
     // Given a counting hook on the listener
     // When "{not json", a message with status "BLOCKED", and one with unknown customerId 999999 are published
     // Then each lands on "customer.status-change.dlq" after exactly 1 listener invocation (0 retries)
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should dead-letter malformed, invalid-status and unknown-customer messages with zero retries")
-    void poisonMessages_zeroRetries() { }
+    void poisonMessages_zeroRetries() throws Exception {
+        long customerId = createCustomer("52998224725");
+        List<String> poisonMessages = List.of(
+                "{not json",
+                statusChange(UUID.randomUUID(), customerId, "BLOCKED"),
+                statusChange(UUID.randomUUID(), UNKNOWN_CUSTOMER_ID, "INACTIVE"));
+
+        for (int index = 0; index < poisonMessages.size(); index++) {
+            int published = index + 1;
+            publishStatusChange(poisonMessages.get(index));
+            Awaitility.await().atMost(EVENTUALLY).pollInterval(POLL_INTERVAL)
+                    .untilAsserted(() -> assertThat(messageCount(STATUS_CHANGE_DLQ)).isEqualTo(published));
+            verify(statusChangeParser, times(published)).parse(any());
+        }
+        // Only the unknown customer gets past parsing, and it is processed once.
+        verify(statusChangeProcessor, times(1)).process(any());
+    }
 
     private long createCustomer(String cpf) throws Exception {
         String body = mockMvc.perform(post("/customers")
@@ -225,6 +331,40 @@ class MessagingReliabilityNfrTest {
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return JSON.readTree(body).path("id").asLong();
+    }
+
+    private static String statusChange(UUID eventId, long customerId, String status) {
+        return "{\"eventId\":\"" + eventId + "\",\"eventType\":\"CUSTOMER_STATUS_CHANGE\",\"customerId\":" + customerId
+                + ",\"status\":\"" + status + "\"}";
+    }
+
+    private void publishStatusChange(String body) {
+        MessageProperties properties = new MessageProperties();
+        properties.setContentType(MessageProperties.CONTENT_TYPE_JSON);
+        rabbitTemplate.send(MessagingTopology.CUSTOMER_EVENTS_EXCHANGE, MessagingTopology.STATUS_CHANGE_ROUTING_KEY,
+                new Message(body.getBytes(StandardCharsets.UTF_8), properties));
+    }
+
+    private void awaitAllAcked() {
+        Awaitility.await().atMost(EVENTUALLY).pollInterval(POLL_INTERVAL)
+                .untilAsserted(() -> assertThat(messageCount(STATUS_CHANGE_QUEUE)).isZero());
+    }
+
+    private long messageCount(String queue) {
+        return RabbitCtl.messageCount(rabbitContainer, queue);
+    }
+
+    private String customerStatusOf(long customerId) {
+        return jdbcTemplate.queryForObject("SELECT status FROM customers WHERE id = ?", String.class, customerId);
+    }
+
+    private long customerVersionOf(long customerId) {
+        return jdbcTemplate.queryForObject("SELECT version FROM customers WHERE id = ?", Long.class, customerId);
+    }
+
+    private long processedRows(UUID eventId) {
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM processed_events WHERE event_id = ?", Long.class,
+                eventId);
     }
 
     private void drainQueueInto(List<Message> received) {

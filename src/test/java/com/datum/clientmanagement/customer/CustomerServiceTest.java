@@ -218,6 +218,34 @@ class CustomerServiceTest {
     }
 
     @Test
+    void changeStatus_differentStatus_setsStatusAndUpdatedAt() {
+        Customer customer = storedCustomer(0);
+
+        service.changeStatus(CUSTOMER_ID, CustomerStatus.INACTIVE);
+
+        assertThat(customer.getStatus()).isEqualTo(CustomerStatus.INACTIVE);
+        assertThat(customer.getUpdatedAt()).isEqualTo(NOW_TRUNCATED);
+    }
+
+    @Test
+    void changeStatus_sameStatus_changesNothing() {
+        Customer customer = storedCustomer(0);
+
+        service.changeStatus(CUSTOMER_ID, CustomerStatus.ACTIVE);
+
+        assertThat(customer.getStatus()).isEqualTo(CustomerStatus.ACTIVE);
+        assertThat(customer.getUpdatedAt()).isEqualTo(CREATED_AT);
+    }
+
+    @Test
+    void changeStatus_unknownId_throws404() {
+        when(repository.findById(CUSTOMER_ID)).thenReturn(Optional.empty());
+
+        assertResponseStatus(() -> service.changeStatus(CUSTOMER_ID, CustomerStatus.INACTIVE), HttpStatus.NOT_FOUND,
+                "No customer exists with id " + CUSTOMER_ID + ".");
+    }
+
+    @Test
     void delete_deletesById() {
         service.delete(CUSTOMER_ID);
 
