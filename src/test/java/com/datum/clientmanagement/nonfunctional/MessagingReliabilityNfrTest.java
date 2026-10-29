@@ -7,20 +7,108 @@
  */
 package com.datum.clientmanagement.nonfunctional;
 
+import com.datum.clientmanagement.RabbitOutage;
+import com.datum.clientmanagement.RestartableRabbitConfiguration;
+import com.datum.clientmanagement.messaging.MessagingTopology;
+import org.awaitility.Awaitility;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.amqp.AmqpException;
+import org.springframework.amqp.core.AmqpAdmin;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import tools.jackson.databind.json.JsonMapper;
 
+import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+@Import(RestartableRabbitConfiguration.class)
+@Testcontainers(disabledWithoutDocker = true)
+@SuppressWarnings({"SqlResolve", "SqlNoDataSourceInspection"}) // IDE has no database; the SQL runs against Testcontainers Postgres
 class MessagingReliabilityNfrTest {
+
+    private static final String QUEUE = MessagingTopology.CUSTOMER_CREATED_QUEUE;
+    private static final long PUBLISH_LATENCY_MS = 1000;
+    private static final Duration RECOVERY_DEADLINE = Duration.ofSeconds(30);
+    private static final Duration POLL_INTERVAL = Duration.ofMillis(200);
+    private static final List<String> OUTAGE_CPFS = List.of("11144477735", "39053344705", "93541134780");
+    private static final JsonMapper JSON = JsonMapper.builder().build();
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    @Autowired
+    private AmqpAdmin amqpAdmin;
+
+    @Autowired
+    private RabbitOutage rabbitOutage;
+
+    @BeforeEach
+    void cleanState() {
+        jdbcTemplate.update("DELETE FROM outbox_events");
+        jdbcTemplate.update("DELETE FROM customers");
+        amqpAdmin.purgeQueue(QUEUE, false);
+    }
+
+    @AfterEach
+    void restoreBroker() {
+        if (!rabbitOutage.isRunning()) {
+            rabbitOutage.start();
+        }
+        rabbitOutage.awaitReady();
+    }
 
     // NFR-7:reliability (latency, happy path)
     // Given RabbitMQ is up
     // When an ADMIN creates a customer (cpf 52998224725) and the 201 is received at time T
     // Then the CUSTOMER_CREATED message for that customer is on "customer.created" by T + 1000 ms
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should publish CUSTOMER_CREATED within 1 second of commit when RabbitMQ is up")
-    void publishWithin1s() { }
+    void publishWithin1s() throws Exception {
+        long customerId = createCustomer("52998224725");
+        long receivedAt = System.nanoTime();
+
+        Message message = rabbitTemplate.receive(QUEUE, PUBLISH_LATENCY_MS);
+
+        long waitedMs = Duration.ofNanos(System.nanoTime() - receivedAt).toMillis();
+        assertThat(message).as("CUSTOMER_CREATED message").isNotNull();
+        assertThat(customerIdOf(message)).isEqualTo(customerId);
+        assertThat(waitedMs).isLessThanOrEqualTo(PUBLISH_LATENCY_MS);
+    }
 
     // NFR-7:reliability (outage recovery)
     // Given RabbitMQ is down and the relay interval is the default 5 s
@@ -29,18 +117,62 @@ class MessagingReliabilityNfrTest {
     // Then all 3 CUSTOMER_CREATED messages are on "customer.created" by R + 30 s
     //  And all 3 outbox rows have sent_at NOT NULL
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should deliver all events within 30 seconds after RabbitMQ recovers from an outage")
-    void deliverWithin30sAfterRecovery() { }
+    void deliverWithin30sAfterRecovery() throws Exception {
+        rabbitOutage.stop();
+        List<Long> customerIds = new ArrayList<>();
+        for (String cpf : OUTAGE_CPFS) {
+            customerIds.add(createCustomer(cpf));
+        }
 
-    // NFR-7:config
-    // Given OUTBOX_RELAY_INTERVAL overridden to 1s (test property)
-    // When a pending outbox row exists and RabbitMQ is up
-    // Then the row is sent within 3 s (proving the interval is configurable, not hard-coded to 5 s)
-    @Test
-    @Disabled("pending: implementer")
-    @DisplayName("should honour a configured relay interval when OUTBOX_RELAY_INTERVAL is overridden")
-    void relayIntervalIsConfigurable() { }
+        rabbitOutage.start();
+        List<Message> received = new ArrayList<>();
+        Awaitility.await()
+                .atMost(RECOVERY_DEADLINE)
+                .pollInterval(POLL_INTERVAL)
+                .ignoreExceptionsInstanceOf(AmqpException.class)
+                .untilAsserted(() -> {
+                    drainQueueInto(received);
+                    assertThat(received).hasSize(OUTAGE_CPFS.size());
+                    assertThat(sentRowCount()).isEqualTo(OUTAGE_CPFS.size());
+                });
+
+        assertThat(received).extracting(MessagingReliabilityNfrTest::customerIdOf)
+                .containsExactlyInAnyOrderElementsOf(customerIds);
+    }
+
+    // The interval is read once at startup, so overriding it needs its own application context.
+    @Nested
+    @TestPropertySource(properties = "app.outbox.relay-interval=1s")
+    class ConfiguredRelayInterval {
+
+        private static final Duration SENT_DEADLINE = Duration.ofSeconds(3);
+
+        @Autowired
+        private JdbcTemplate intervalJdbcTemplate;
+
+        // NFR-7:config
+        // Given OUTBOX_RELAY_INTERVAL overridden to 1s (test property)
+        // When a pending outbox row exists and RabbitMQ is up
+        // Then the row is sent within 3 s (proving the interval is configurable, not hard-coded to 5 s)
+        @Test
+        @DisplayName("should honour a configured relay interval when OUTBOX_RELAY_INTERVAL is overridden")
+        void relayIntervalIsConfigurable() {
+            intervalJdbcTemplate.update("DELETE FROM outbox_events");
+            UUID eventId = UUID.randomUUID();
+            Timestamp now = Timestamp.from(Instant.now());
+            intervalJdbcTemplate.update("INSERT INTO outbox_events"
+                    + " (event_id, event_type, aggregate_id, payload, created_at, next_attempt_at)"
+                    + " VALUES (?, 'CUSTOMER_CREATED', 1, CAST(? AS jsonb), ?, ?)",
+                    eventId, "{\"eventId\":\"" + eventId + "\",\"eventType\":\"CUSTOMER_CREATED\",\"customerId\":1,"
+                            + "\"createdAt\":\"" + now.toInstant() + "\"}", now, now);
+
+            Awaitility.await().atMost(SENT_DEADLINE).pollInterval(POLL_INTERVAL).untilAsserted(() ->
+                    assertThat(intervalJdbcTemplate.queryForObject(
+                            "SELECT sent_at FROM outbox_events WHERE event_id = ?", Timestamp.class, eventId))
+                            .isNotNull());
+        }
+    }
 
     // NFR-8:idempotency
     // Given customer X ACTIVE
@@ -84,4 +216,30 @@ class MessagingReliabilityNfrTest {
     @Disabled("pending: implementer")
     @DisplayName("should dead-letter malformed, invalid-status and unknown-customer messages with zero retries")
     void poisonMessages_zeroRetries() { }
+
+    private long createCustomer(String cpf) throws Exception {
+        String body = mockMvc.perform(post("/customers")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Ana Souza\",\"cpf\":\"" + cpf + "\",\"email\":\"ana@example.com\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return JSON.readTree(body).path("id").asLong();
+    }
+
+    private void drainQueueInto(List<Message> received) {
+        Message message = rabbitTemplate.receive(QUEUE);
+        while (message != null) {
+            received.add(message);
+            message = rabbitTemplate.receive(QUEUE);
+        }
+    }
+
+    private long sentRowCount() {
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM outbox_events WHERE sent_at IS NOT NULL", Long.class);
+    }
+
+    private static long customerIdOf(Message message) {
+        return JSON.readTree(new String(message.getBody(), StandardCharsets.UTF_8)).path("customerId").asLong();
+    }
 }

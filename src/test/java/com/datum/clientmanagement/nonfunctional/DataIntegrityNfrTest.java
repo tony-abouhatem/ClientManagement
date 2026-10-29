@@ -32,6 +32,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.sql.SQLException;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
@@ -55,6 +56,9 @@ class DataIntegrityNfrTest {
     private static final String NOT_NULL_VIOLATION = "23502";
     private static final String INSERT_CUSTOMER = "INSERT INTO customers "
             + "(name, name_normalized, cpf, email, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, now(), now())";
+    private static final String INSERT_OUTBOX_EVENT = "INSERT INTO outbox_events (event_id, event_type, aggregate_id,"
+            + " payload) VALUES (?, 'CUSTOMER_CREATED', 1, CAST(? AS jsonb))";
+    private static final UUID OUTBOX_EVENT_ID = UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddddddd");
     private static final String ROW_SNAPSHOT =
             "SELECT name, email, status, updated_at, version FROM customers WHERE id = ?";
 
@@ -127,9 +131,29 @@ class DataIntegrityNfrTest {
     // When another row with the same event_id is inserted via SQL
     // Then the insert fails with SQLState 23505
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should reject a duplicate eventId in outbox_events at database level")
-    void dataIntegrity_outboxEventIdUnique() { }
+    void dataIntegrity_outboxEventIdUnique() {
+        jdbcTemplate.update("DELETE FROM outbox_events");
+        insertOutboxEvent(OUTBOX_EVENT_ID);
+
+        assertThat(sqlStateOf(() -> insertOutboxEvent(OUTBOX_EVENT_ID))).isEqualTo(UNIQUE_VIOLATION);
+    }
+
+    // AC-6 (ticket 06) — schema of migration V2__outbox_failure_details.sql
+    // Given the Flyway migrations have run
+    // When the outbox_events columns are read from information_schema
+    // Then last_failed_at is a nullable timestamptz and last_error_type a nullable varchar(20)
+    @Test
+    @DisplayName("should have nullable last_failed_at and last_error_type columns on outbox_events")
+    void dataIntegrity_outboxFailureDetailColumns() {
+        Map<String, Object> lastFailedAt = outboxColumn("last_failed_at");
+        assertThat(lastFailedAt).containsEntry("data_type", "timestamp with time zone")
+                .containsEntry("is_nullable", "YES");
+        Map<String, Object> lastErrorType = outboxColumn("last_error_type");
+        assertThat(lastErrorType).containsEntry("data_type", "character varying")
+                .containsEntry("character_maximum_length", 20)
+                .containsEntry("is_nullable", "YES");
+    }
 
     // NFR:data-integrity
     // Given the customers table
@@ -180,6 +204,15 @@ class DataIntegrityNfrTest {
     // The name doubles as name_normalized: these rows only exist to exercise the table constraints.
     private void insertCustomer(String name, String cpf, String email, String status) {
         jdbcTemplate.update(INSERT_CUSTOMER, name, name, cpf, email, status);
+    }
+
+    private Map<String, Object> outboxColumn(String column) {
+        return jdbcTemplate.queryForMap("SELECT data_type, character_maximum_length, is_nullable"
+                + " FROM information_schema.columns WHERE table_name = 'outbox_events' AND column_name = ?", column);
+    }
+
+    private void insertOutboxEvent(UUID eventId) {
+        jdbcTemplate.update(INSERT_OUTBOX_EVENT, eventId, "{\"eventId\":\"" + eventId + "\"}");
     }
 
     private static String sqlStateOf(ThrowingCallable insert) {
