@@ -1,5 +1,5 @@
 /*
- * NFR-1, NFR-2 (docs/PRODUCT.md); tickets 02, 03, 04 (GitHub issues #3, #4, #5).
+ * NFR-1, NFR-2 (docs/PRODUCT.md); tickets 02, 03, 04, 08 (GitHub issues #3, #4, #5, #9).
  *
  * Interfaces under test (do not exist yet): SecurityFilterChain in com.datum.clientmanagement.security,
  * ProblemDetail entry point / access-denied handler, all HTTP endpoints.
@@ -8,6 +8,7 @@ package com.datum.clientmanagement.nonfunctional;
 
 import com.datum.clientmanagement.TestcontainersConfiguration;
 import com.datum.clientmanagement.customer.CustomerService;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,6 +86,16 @@ class SecurityNfrTest {
             assertThat(statusOf(path)).as("GET %s", path).isNotIn(401, 403);
         }
     }
+
+    // NFR-2:security — ticket 08 (triage decision 1: /swagger-ui.html joins SecurityConfig.PUBLIC_ENDPOINTS)
+    // Given no Authorization header
+    // When GET /swagger-ui.html is called
+    // Then the response status is 3xx (springdoc redirect), not 401 and not 403
+    //  And the Location header ends with "/swagger-ui/index.html"
+    @Test
+    @Disabled("pending: implementer")
+    @DisplayName("should redirect to the Swagger UI without a token when /swagger-ui.html is called")
+    void swaggerUiHtml_redirectsWithoutToken() { }
 
     // NFR-1:security
     // Given no Authorization header
