@@ -23,6 +23,18 @@ spring:
     publisher-returns: true
     template:
       mandatory: true
+    # CUSTOMER_STATUS_CHANGE consumer (ticket 07, NFR-9). A transient failure gets 3 attempts in total (first
+    # delivery + max-retries 2, exponential backoff in-thread), then the message is rejected to the DLQ. Unprocessable
+    # messages skip the retry (StatusChangeRetryConfiguration). A rejected message is never requeued.
+    listener:
+      simple:
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-retries: ${STATUS_CHANGE_RETRY_MAX_RETRIES:2}
+          initial-interval: ${STATUS_CHANGE_RETRY_INITIAL_INTERVAL:1s}
+          multiplier: ${STATUS_CHANGE_RETRY_MULTIPLIER:2}
+          max-interval: ${STATUS_CHANGE_RETRY_MAX_INTERVAL:10s}
   security:
     oauth2:
       resourceserver:

@@ -160,7 +160,7 @@ class OutboxRelayTest {
 
     private static OutboxEventEntity pendingEvent() {
         UUID eventId = UUID.randomUUID();
-        return OutboxEventEntity.afterFailedPublish(eventId, "CUSTOMER_CREATED", 1L,
+        return OutboxEventEntity.afterFailedPublish(eventId, EventType.CUSTOMER_CREATED, 1L,
                 "{\"eventId\":\"" + eventId + "\"}",
                 new PublishFailedException(PublishFailureReason.BROKER_DOWN, "first publish"), NOW.minusSeconds(1));
     }
