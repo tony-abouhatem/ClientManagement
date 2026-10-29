@@ -5,6 +5,7 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -32,6 +33,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class CustomerServiceTest {
@@ -45,12 +47,13 @@ class CustomerServiceTest {
 
     private final CustomerRepository repository = mock(CustomerRepository.class);
     private final ScoreClient scoreClient = mock(ScoreClient.class);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final CustomerService service =
-            new CustomerService(repository, Clock.fixed(NOW, ZoneOffset.UTC), scoreClient);
+            new CustomerService(repository, Clock.fixed(NOW, ZoneOffset.UTC), scoreClient, events);
 
     @Test
     void create_newCpf_savesNormalizedCustomerWithDefaults() {
-        when(repository.saveAndFlush(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        savesWithGeneratedId();
 
         Customer created = service.create(new CustomerRequests.Create("  João da Silva ", "529.982.247-25",
                 "joao@example.com", null));
@@ -68,6 +71,24 @@ class CustomerServiceTest {
     }
 
     @Test
+    void create_newCpf_raisesCustomerCreatedEventWithSavedIdAndCreatedAt() {
+        savesWithGeneratedId();
+
+        service.create(createRequest());
+
+        verify(events).publishEvent(new CustomerCreatedEvent(CUSTOMER_ID, NOW_TRUNCATED));
+    }
+
+    // Like JPA's identity generation: the saved instance is the same object, now with an id.
+    private void savesWithGeneratedId() {
+        when(repository.saveAndFlush(any(Customer.class))).thenAnswer(invocation -> {
+            Customer customer = invocation.getArgument(0);
+            ReflectionTestUtils.setField(customer, "id", CUSTOMER_ID);
+            return customer;
+        });
+    }
+
+    @Test
     void create_existingCpf_throwsDuplicateWithoutSaving() {
         when(repository.existsByCpf(CPF)).thenReturn(true);
 
@@ -75,6 +96,7 @@ class CustomerServiceTest {
                 CustomerService.DUPLICATE_CPF_MESSAGE);
         assertThat(CustomerService.DUPLICATE_CPF_MESSAGE).doesNotContain(CPF);
         verify(repository, never()).saveAndFlush(any());
+        verifyNoInteractions(events);
     }
 
     @Test
@@ -83,6 +105,7 @@ class CustomerServiceTest {
 
         assertResponseStatus(() -> service.create(createRequest()), HttpStatus.CONFLICT,
                 CustomerService.DUPLICATE_CPF_MESSAGE);
+        verifyNoInteractions(events);
     }
 
     @Test
