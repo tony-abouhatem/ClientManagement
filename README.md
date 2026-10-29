@@ -87,13 +87,14 @@ curl -s -X POST http://localhost:8081/realms/client-management/protocol/openid-c
 | GET | `/customers?status=ACTIVE&name=&page=0&size=20` | USER/ADMIN | 200 | 400 |
 | GET | `/customers/search?name=joao&page=0&size=20` | USER/ADMIN | 200 | 400 |
 | GET | `/customers/{id}/score` | USER/ADMIN | 200 | 404, 502, 503, 504 |
-| GET | `/actuator/health` | público | 200 | — |
+| GET | `/actuator/health` | público | 200 | 503 (banco ou RabbitMQ fora do ar) |
 
 - Os erros seguem a RFC 7807 (`application/problem+json`).
 - Cliente inexistente: 404 com o título padrão `Not Found` e detalhe `No customer exists with id <id>.` (exceto DELETE, que é idempotente e retorna 204).
 - **Paginação:** os padrões são `page=0` e `size=20`. `page < 0`, `size < 1` ou `size > 100` resultam em 400, com `errors[]` indicando o campo (ex.: "size must be between 1 and 100").
 - **Concorrência:** toda resposta de cliente traz `version`. O `PUT` exige o `version` lido por último. Se o `version` divergir, a resposta é 409. Se estiver ausente, 400.
 - **Score:** o serviço externo indisponível (conexão recusada, timeout de conexão, 5xx após retries, circuit breaker aberto) gera 503. Uma resposta lenta (timeout de leitura) gera 504. Score inexistente gera 404, e uma resposta inválida gera 502.
+- **Health:** `/actuator/health` mostra `db`, `rabbit` e `circuitBreakers`. O Score é opcional: com o circuit breaker aberto, `circuitBreakers.details.score.status` fica `CIRCUIT_OPEN`, mas o status geral continua `UP` (200). Banco ou RabbitMQ fora do ar deixam o status geral `DOWN` (503).
 
 ## Configurações necessárias
 Os valores padrão ficam em `application.yaml` e podem ser sobrescritos por variáveis de ambiente (lista completa em `.env.example`):
@@ -106,7 +107,11 @@ Os valores padrão ficam em `application.yaml` e podem ser sobrescritos por vari
 | `JWK_SET_URI` | Chaves de assinatura do Keycloak (no compose: `http://keycloak:8080/...`) | `http://localhost:8081/realms/client-management/protocol/openid-connect/certs` |
 | `SCORE_BASE_URL` | Serviço de Score | `http://localhost:8089` |
 | `SCORE_CONNECT_TIMEOUT` / `SCORE_READ_TIMEOUT` | Timeouts | `1s` / `2s` |
+| `RABBITMQ_CONFIRM_TIMEOUT` | Tempo máximo de espera pela confirmação do RabbitMQ antes de gravar o evento na outbox | `5s` |
 | `OUTBOX_RELAY_INTERVAL` | Intervalo do reenvio de eventos | `5s` |
+| `OUTBOX_BATCH_SIZE` | Máximo de eventos reenviados por execução | `100` |
+| `OUTBOX_RETRY_WAIT_DURATION` / `OUTBOX_RETRY_BACKOFF_MULTIPLIER` / `OUTBOX_RETRY_MAX_WAIT_DURATION` | Espera após uma falha de reenvio (Resilience4j retry `outbox`: multiplicada a cada falha, até o máximo) | `1s` / `2` / `15s` |
+| `OUTBOX_RETRY_MAX_ATTEMPTS` | Falhas de reenvio até o evento desistir e virar "linha morta" (≈ 24 h no máximo de 15 s) | `5760` |
 
 ## Exemplos de utilização das APIs
 ```bash
@@ -148,8 +153,21 @@ Qualquer outro CPF não tem stub, e o WireMock responde 404.
 - **Exchange** `customer.events` (topic).
 - **CUSTOMER_CREATED**
   - O evento é publicado com routing key `customer.created` (fila `customer.created`) logo após o commit do cadastro, com publisher confirms.
-  - Se o RabbitMQ estiver indisponível ou não confirmar, o evento é gravado na tabela `outbox_events`. Um job agendado reenvia o evento até ter sucesso.
-  - A entrega é *at-least-once*: consumidores devem deduplicar por `eventId`.
+  - Se o RabbitMQ estiver indisponível, recusar (nack), não confirmar a tempo ou devolver a mensagem como não roteável, o evento é gravado na tabela `outbox_events`. O cadastro continua respondendo 201.
+  - Um job agendado (a cada `OUTBOX_RELAY_INTERVAL`) reenvia os eventos pendentes, do mais antigo para o mais novo, com o mesmo `eventId`, até ter sucesso. Cada falha incrementa `attempts`, grava `last_error`, `last_error_type` (`BROKER_DOWN`, `CONFIRM_TIMEOUT`, `NACK` ou `UNROUTABLE`) e `last_failed_at`, e adia `next_attempt_at` (backoff exponencial até `OUTBOX_RETRY_MAX_WAIT_DURATION`). Cada evento é reenviado na sua própria transação curta, e várias instâncias podem rodar o job ao mesmo tempo (`SKIP LOCKED`).
+  - Quando `attempts` chega a `OUTBOX_RETRY_MAX_ATTEMPTS` (padrão 5760, cerca de 24 h), a aplicação registra um log ERROR com o `eventId` e para de reenviar o evento: ele vira uma "linha morta" em `outbox_events`. Aumentar `OUTBOX_RETRY_MAX_ATTEMPTS` depois faz as linhas mortas voltarem a ser reenviadas sozinhas. Para listar e reenviar manualmente:
+    ```sql
+    -- Linhas mortas (use o valor configurado de OUTBOX_RETRY_MAX_ATTEMPTS)
+    SELECT event_id, aggregate_id, attempts, last_error_type, last_error, last_failed_at
+    FROM outbox_events
+    WHERE sent_at IS NULL AND attempts >= 5760
+    ORDER BY created_at;
+
+    -- Reenviar uma linha morta (o job a publica na próxima execução)
+    UPDATE outbox_events SET attempts = 0, next_attempt_at = now() WHERE event_id = '<event_id>';
+    ```
+  - A entrega é *at-least-once*: consumidores devem deduplicar por `eventId`. Uma confirmação que expira depois de o broker aceitar a mensagem gera uma duplicata no reenvio.
+  - Limitação aceita: se a aplicação cair entre o commit do cadastro e a gravação na outbox, o evento é perdido.
   ```json
   {"eventId":"7ba85b17-...","eventType":"CUSTOMER_CREATED","customerId":123,"createdAt":"2026-08-11T15:30:00Z"}
   ```

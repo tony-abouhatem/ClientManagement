@@ -14,8 +14,8 @@ import org.testcontainers.utility.DockerImageName;
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfiguration {
 
-    private static final DockerImageName POSTGRES_IMAGE = DockerImageName.parse("postgres:16-alpine");
-    private static final DockerImageName RABBITMQ_IMAGE = DockerImageName.parse("rabbitmq:4.1-management-alpine");
+    public static final DockerImageName POSTGRES_IMAGE = DockerImageName.parse("postgres:16-alpine");
+    public static final DockerImageName RABBITMQ_IMAGE = DockerImageName.parse("rabbitmq:4.1-management-alpine");
 
     @Bean
     @ServiceConnection

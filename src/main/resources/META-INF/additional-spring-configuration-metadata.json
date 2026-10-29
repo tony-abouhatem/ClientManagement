@@ -34,6 +34,11 @@
       "name": "app.outbox.relay-interval",
       "type": "java.time.Duration",
       "description": "How often the outbox relay retries unsent events (ticket 06)."
+    },
+    {
+      "name": "app.outbox.batch-size",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of pending outbox rows one relay run sends, one transaction each (ticket 06)."
     }
   ]
 }
