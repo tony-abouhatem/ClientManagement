@@ -8,7 +8,6 @@ package com.datum.clientmanagement.nonfunctional;
 
 import com.datum.clientmanagement.TestcontainersConfiguration;
 import com.datum.clientmanagement.customer.CustomerService;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -93,9 +92,13 @@ class SecurityNfrTest {
     // Then the response status is 3xx (springdoc redirect), not 401 and not 403
     //  And the Location header ends with "/swagger-ui/index.html"
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should redirect to the Swagger UI without a token when /swagger-ui.html is called")
-    void swaggerUiHtml_redirectsWithoutToken() { }
+    void swaggerUiHtml_redirectsWithoutToken() throws Exception {
+        MockHttpServletResponse response = mockMvc.perform(get("/swagger-ui.html")).andReturn().getResponse();
+
+        assertThat(response.getStatus()).as("status").isBetween(300, 399);
+        assertThat(response.getHeader(HttpHeaders.LOCATION)).endsWith("/swagger-ui/index.html");
+    }
 
     // NFR-1:security
     // Given no Authorization header
