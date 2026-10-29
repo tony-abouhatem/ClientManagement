@@ -75,6 +75,14 @@ public class Customer {
         this.updatedAt = now;
     }
 
+    /** Sets a new status. Asking for the current one changes nothing, so the version is not bumped. */
+    public void changeStatus(CustomerStatus newStatus, Instant now) {
+        if (this.status != newStatus) {
+            this.status = newStatus;
+            this.updatedAt = now;
+        }
+    }
+
     private void rename(String newName) {
         this.name = newName;
         this.nameNormalized = CustomerFormats.searchableName(newName);

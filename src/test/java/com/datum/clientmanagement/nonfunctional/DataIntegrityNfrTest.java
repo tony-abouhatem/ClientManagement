@@ -11,7 +11,6 @@ package com.datum.clientmanagement.nonfunctional;
 import com.datum.clientmanagement.TestcontainersConfiguration;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,6 +58,7 @@ class DataIntegrityNfrTest {
     private static final String INSERT_OUTBOX_EVENT = "INSERT INTO outbox_events (event_id, event_type, aggregate_id,"
             + " payload) VALUES (?, 'CUSTOMER_CREATED', 1, CAST(? AS jsonb))";
     private static final UUID OUTBOX_EVENT_ID = UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddddddd");
+    private static final UUID PROCESSED_EVENT_ID = UUID.fromString("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
     private static final String ROW_SNAPSHOT =
             "SELECT name, email, status, updated_at, version FROM customers WHERE id = ?";
 
@@ -122,9 +122,13 @@ class DataIntegrityNfrTest {
     // When the same event_id is inserted again via SQL
     // Then the insert fails with SQLState 23505 (PK violation)
     @Test
-    @Disabled("pending: implementer")
     @DisplayName("should reject a duplicate eventId in processed_events at database level")
-    void dataIntegrity_processedEventsPrimaryKey() { }
+    void dataIntegrity_processedEventsPrimaryKey() {
+        jdbcTemplate.update("DELETE FROM processed_events");
+        insertProcessedEvent(PROCESSED_EVENT_ID);
+
+        assertThat(sqlStateOf(() -> insertProcessedEvent(PROCESSED_EVENT_ID))).isEqualTo(UNIQUE_VIOLATION);
+    }
 
     // NFR:data-integrity
     // Given an outbox_events row with event_id "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
@@ -209,6 +213,11 @@ class DataIntegrityNfrTest {
     private Map<String, Object> outboxColumn(String column) {
         return jdbcTemplate.queryForMap("SELECT data_type, character_maximum_length, is_nullable"
                 + " FROM information_schema.columns WHERE table_name = 'outbox_events' AND column_name = ?", column);
+    }
+
+    private void insertProcessedEvent(UUID eventId) {
+        jdbcTemplate.update("INSERT INTO processed_events (event_id, event_type) VALUES (?, 'CUSTOMER_STATUS_CHANGE')",
+                eventId);
     }
 
     private void insertOutboxEvent(UUID eventId) {
