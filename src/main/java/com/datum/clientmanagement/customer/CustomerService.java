@@ -109,6 +109,22 @@ public class CustomerService {
         return customer;
     }
 
+    /**
+     * Status change requested by an upstream system through RabbitMQ (ticket 07). Joins the caller's transaction,
+     * so the change commits together with the caller's idempotency record. Asking for the current status is a
+     * no-op. A concurrent API update surfaces as an {@link OptimisticLockingFailureException} at commit, which the
+     * consumer treats as transient.
+     *
+     * @throws ResponseStatusException with 404 when no customer has this id (same as {@link #findById})
+     */
+    @Transactional
+    public void changeStatus(long id, CustomerStatus status) {
+        Customer customer = findById(id);
+        CustomerStatus previous = customer.getStatus();
+        customer.changeStatus(status, now());
+        log.info("Customer {} status change requested: {} -> {}", id, previous, status);
+    }
+
     @Transactional
     public void delete(long id) {
         // Idempotent: an unknown or already-deleted id is a no-op (still 204).

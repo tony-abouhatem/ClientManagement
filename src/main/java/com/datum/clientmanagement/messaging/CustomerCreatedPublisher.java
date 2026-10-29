@@ -26,9 +26,6 @@ import java.util.UUID;
 @Component
 class CustomerCreatedPublisher {
 
-    // Both the message's eventType and the outbox row's event_type.
-    private static final String EVENT_TYPE = "CUSTOMER_CREATED";
-
     private static final Logger log = LoggerFactory.getLogger(CustomerCreatedPublisher.class);
 
     private final ConfirmedPublisher publisher;
@@ -65,7 +62,7 @@ class CustomerCreatedPublisher {
     private void storeInOutbox(UUID eventId, long customerId, String payload, PublishFailedException failure) {
         try {
             newTransaction.executeWithoutResult(status -> outbox.save(OutboxEventEntity.afterFailedPublish(eventId,
-                    EVENT_TYPE, customerId, payload, failure, clock.instant())));
+                    EventType.CUSTOMER_CREATED, customerId, payload, failure, clock.instant())));
         } catch (DataAccessException | TransactionException exception) {
             // The customer is already committed; failing the request now would only make the client retry into a
             // 409. Losing the event here is the gap ADR-5 accepts, so it is reported loudly instead.
@@ -81,7 +78,7 @@ class CustomerCreatedPublisher {
     private static Map<String, Object> payloadOf(UUID eventId, CustomerCreatedEvent event) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("eventId", eventId);
-        payload.put("eventType", EVENT_TYPE);
+        payload.put("eventType", EventType.CUSTOMER_CREATED);
         payload.put("customerId", event.customerId());
         payload.put("createdAt", event.createdAt());
         return payload;

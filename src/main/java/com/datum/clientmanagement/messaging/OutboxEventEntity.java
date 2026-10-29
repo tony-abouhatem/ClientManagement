@@ -33,8 +33,9 @@ class OutboxEventEntity {
     @Column(name = "event_id", nullable = false, updatable = false)
     private UUID eventId;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "event_type", nullable = false, updatable = false, length = EVENT_TYPE_MAX_LENGTH)
-    private String eventType;
+    private EventType eventType;
 
     @Column(name = "aggregate_id", nullable = false, updatable = false)
     private long aggregateId;
@@ -72,7 +73,7 @@ class OutboxEventEntity {
         // for JPA
     }
 
-    private OutboxEventEntity(UUID eventId, String eventType, long aggregateId, String payload, Instant now) {
+    private OutboxEventEntity(UUID eventId, EventType eventType, long aggregateId, String payload, Instant now) {
         this.eventId = eventId;
         this.eventType = eventType;
         this.aggregateId = aggregateId;
@@ -85,7 +86,7 @@ class OutboxEventEntity {
      * An event whose publish right after commit failed: it keeps that failure's details, with {@code attempts}
      * still 0, and is due for the relay straight away.
      */
-    static OutboxEventEntity afterFailedPublish(UUID eventId, String eventType, long aggregateId, String payload,
+    static OutboxEventEntity afterFailedPublish(UUID eventId, EventType eventType, long aggregateId, String payload,
             PublishFailedException failure, Instant now) {
         OutboxEventEntity event = new OutboxEventEntity(eventId, eventType, aggregateId, payload, now);
         event.recordFailure(failure, now);
