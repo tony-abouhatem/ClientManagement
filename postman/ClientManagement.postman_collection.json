@@ -1,0 +1,1210 @@
+{
+  "info": {
+    "_postman_id": "0e7c1f3a-8d2b-4a6e-9c5f-1b3d5e7f9a20",
+    "name": "ClientManagement",
+    "description": "Exercises every ClientManagement endpoint against the local Docker Compose stack. Run the whole collection in order with the ClientManagement environment: the Auth folder fetches the USER and ADMIN tokens from Keycloak, the RabbitMQ folder checks the CUSTOMER_CREATED and CUSTOMER_STATUS_CHANGE events through the RabbitMQ management API, and the Cleanup folder deletes every customer the run created.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{adminToken}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "userToken", "value": "" },
+    { "key": "adminToken", "value": "" },
+    { "key": "customerCpf", "value": "" },
+    { "key": "customerId", "value": "" },
+    { "key": "customerVersion", "value": "" },
+    { "key": "staleVersion", "value": "" },
+    { "key": "scoreOkCustomerId", "value": "" },
+    { "key": "scoreNotFoundCustomerId", "value": "" },
+    { "key": "scoreUnavailableCustomerId", "value": "" },
+    { "key": "scoreTimeoutCustomerId", "value": "" },
+    { "key": "statusBefore", "value": "" },
+    { "key": "versionBefore", "value": "" },
+    { "key": "statusChangeTarget", "value": "" },
+    { "key": "statusChangeEventId", "value": "" },
+    { "key": "statusPollAttempt", "value": "0" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Get USER token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('userToken', json.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "password", "type": "text" },
+                { "key": "client_id", "value": "client-management-cli", "type": "text" },
+                { "key": "username", "value": "user", "type": "text" },
+                { "key": "password", "value": "user", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{keycloakUrl}}/realms/client-management/protocol/openid-connect/token",
+              "host": ["{{keycloakUrl}}"],
+              "path": ["realms", "client-management", "protocol", "openid-connect", "token"]
+            }
+          }
+        },
+        {
+          "name": "Get ADMIN token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('adminToken', json.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "password", "type": "text" },
+                { "key": "client_id", "value": "client-management-cli", "type": "text" },
+                { "key": "username", "value": "admin", "type": "text" },
+                { "key": "password", "value": "admin", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{keycloakUrl}}/realms/client-management/protocol/openid-connect/token",
+              "host": ["{{keycloakUrl}}"],
+              "path": ["realms", "client-management", "protocol", "openid-connect", "token"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customers",
+      "item": [
+        {
+          "name": "Create customer (ADMIN) - 201",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// A valid CPF that is new on every run, so the collection can be run repeatedly.",
+                  "function checkDigit(digits) {",
+                  "  const firstWeight = digits.length + 1;",
+                  "  const sum = digits.reduce((total, digit, index) => total + digit * (firstWeight - index), 0);",
+                  "  const rest = (sum * 10) % 11;",
+                  "  return rest === 10 ? 0 : rest;",
+                  "}",
+                  "let base;",
+                  "do {",
+                  "  base = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));",
+                  "} while (new Set(base).size === 1);",
+                  "const first = checkDigit(base);",
+                  "const second = checkDigit([...base, first]);",
+                  "pm.collectionVariables.set('customerCpf', [...base, first, second].join(''));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('stores the CPF as digits, ACTIVE, version 0', () => {",
+                  "  pm.expect(json.cpf).to.eql(pm.collectionVariables.get('customerCpf'));",
+                  "  pm.expect(json.status).to.eql('ACTIVE');",
+                  "  pm.expect(json.version).to.eql(0);",
+                  "});",
+                  "pm.test('Location points to the customer', () => pm.response.to.have.header('Location', '/customers/' + json.id));",
+                  "pm.collectionVariables.set('customerId', json.id);",
+                  "pm.collectionVariables.set('customerVersion', json.version);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Cliente Postman\",\"cpf\":\"{{customerCpf}}\",\"email\":\"cliente.postman@example.com\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/customers", "host": ["{{baseUrl}}"], "path": ["customers"] }
+          }
+        },
+        {
+          "name": "Create customer with duplicate CPF - 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 409', () => pm.response.to.have.status(409));",
+                  "pm.test('problem+json', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Cliente Duplicado\",\"cpf\":\"{{customerCpf}}\",\"email\":\"duplicado@example.com\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/customers", "host": ["{{baseUrl}}"], "path": ["customers"] }
+          }
+        },
+        {
+          "name": "Create customer as USER - 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Cliente Proibido\",\"cpf\":\"{{customerCpf}}\",\"email\":\"proibido@example.com\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/customers", "host": ["{{baseUrl}}"], "path": ["customers"] }
+          }
+        },
+        {
+          "name": "Create customer with invalid fields - 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('errors[] names name, cpf and email', () => {",
+                  "  const fields = pm.response.json().errors.map(error => error.field);",
+                  "  pm.expect(fields).to.include.members(['name', 'cpf', 'email']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"\",\"cpf\":\"12345678900\",\"email\":\"not-an-email\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/customers", "host": ["{{baseUrl}}"], "path": ["customers"] }
+          }
+        },
+        {
+          "name": "List customers without token - 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Bearer challenge', () => pm.expect(pm.response.headers.get('WWW-Authenticate')).to.match(/^Bearer/));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/customers", "host": ["{{baseUrl}}"], "path": ["customers"] }
+          }
+        },
+        {
+          "name": "Get customer by id (USER) - 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('returns the created customer', () => pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get('customerId'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{customerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get unknown customer - 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('title is Not Found', () => pm.expect(pm.response.json().title).to.eql('Not Found'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/customers/999999", "host": ["{{baseUrl}}"], "path": ["customers", "999999"] }
+          }
+        },
+        {
+          "name": "List customers by status - 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('only ACTIVE customers, page metadata present', () => {",
+                  "  const json = pm.response.json();",
+                  "  json.content.forEach(customer => pm.expect(customer.status).to.eql('ACTIVE'));",
+                  "  pm.expect(json.page.size).to.eql(20);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers?status=ACTIVE&page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers"],
+              "query": [
+                { "key": "status", "value": "ACTIVE" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List customers with invalid size - 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('errors[] names size', () => pm.expect(pm.response.json().errors.map(error => error.field)).to.include('size'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers?size=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers"],
+              "query": [{ "key": "size", "value": "0" }]
+            }
+          }
+        },
+        {
+          "name": "Search customers by name (USER) - 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('finds the created customer case-insensitively', () => {",
+                  "  const ids = pm.response.json().content.map(customer => customer.id);",
+                  "  pm.expect(ids).to.include(Number(pm.collectionVariables.get('customerId')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/search?name=CLIENTE%20postman&size=100",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "search"],
+              "query": [
+                { "key": "name", "value": "CLIENTE%20postman" },
+                { "key": "size", "value": "100" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update customer - 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "const previousVersion = Number(pm.collectionVariables.get('customerVersion'));",
+                  "pm.test('status INACTIVE and version incremented', () => {",
+                  "  pm.expect(json.status).to.eql('INACTIVE');",
+                  "  pm.expect(json.version).to.eql(previousVersion + 1);",
+                  "});",
+                  "pm.collectionVariables.set('staleVersion', previousVersion);",
+                  "pm.collectionVariables.set('customerVersion', json.version);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Cliente Postman\",\"email\":\"cliente.postman.novo@example.com\",\"status\":\"INACTIVE\",\"version\":{{customerVersion}}}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{customerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update customer with stale version - 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Cliente Postman\",\"email\":\"cliente.postman@example.com\",\"status\":\"ACTIVE\",\"version\":{{staleVersion}}}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{customerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update customer changing the CPF - 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Cliente Postman\",\"email\":\"cliente.postman.novo@example.com\",\"status\":\"INACTIVE\",\"version\":{{customerVersion}},\"cpf\":\"52998224725\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{customerId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "RabbitMQ",
+      "description": "Checks the messaging side through the RabbitMQ management HTTP API (basic auth {{rabbitUser}}/{{rabbitPassword}}): the CUSTOMER_CREATED event of the main customer, and a CUSTOMER_STATUS_CHANGE that is applied once and ignored when its eventId comes again.",
+      "item": [
+        {
+          "name": "Read CUSTOMER_CREATED from the customer.created queue - 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// ack_requeue_true puts every message back, so other people's messages stay in the queue.",
+                  "// The queue has no consumer: it holds up to MESSAGES_READ messages from earlier runs and manual use.",
+                  "const MESSAGES_READ = 1000;",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const messages = pm.response.json();",
+                  "const customerId = Number(pm.collectionVariables.get('customerId'));",
+                  "function parsePayload(message) {",
+                  "  try { return JSON.parse(message.payload); } catch (error) { return {}; }",
+                  "}",
+                  "const event = messages.map(parsePayload)",
+                  "  .find(payload => payload.eventType === 'CUSTOMER_CREATED' && payload.customerId === customerId);",
+                  "pm.test('a CUSTOMER_CREATED event names the created customer', () => {",
+                  "  const hint = messages.length >= MESSAGES_READ",
+                  "    ? ' (the queue holds ' + MESSAGES_READ + '+ messages; purge customer.created and run again)' : '';",
+                  "  pm.expect(event, 'CUSTOMER_CREATED for customer ' + customerId + hint).to.not.equal(undefined);",
+                  "  pm.expect(event.eventId).to.match(/^[0-9a-f-]{36}$/);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{rabbitUser}}", "type": "string" },
+                { "key": "password", "value": "{{rabbitPassword}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"count\":1000,\"ackmode\":\"ack_requeue_true\",\"encoding\":\"auto\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{rabbitUrl}}/api/queues/%2F/customer.created/get",
+              "host": ["{{rabbitUrl}}"],
+              "path": ["api", "queues", "%2F", "customer.created", "get"]
+            }
+          }
+        },
+        {
+          "name": "Get customer before the status change (USER) - 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "const found = pm.response.code === 200;",
+                  "pm.collectionVariables.set('statusBefore', found ? json.status : '');",
+                  "pm.collectionVariables.set('versionBefore', found ? json.version : '');",
+                  "// Empty when the customer is missing, so the publish requests below are skipped (see their pre-request).",
+                  "pm.collectionVariables.set('statusChangeTarget', found ? (json.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE') : '');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{customerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Publish CUSTOMER_STATUS_CHANGE - routed",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Without a customer the event would be a poison message left in the DLQ; earlier failures already fail the run.",
+                  "if (!pm.collectionVariables.get('statusChangeTarget')) {",
+                  "  pm.execution.skipRequest();",
+                  "}",
+                  "pm.collectionVariables.set('statusChangeEventId', pm.variables.replaceIn('{{$guid}}'));",
+                  "pm.collectionVariables.set('statusPollAttempt', 0);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('routed to the status-change queue', () => pm.expect(pm.response.json().routed).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{rabbitUser}}", "type": "string" },
+                { "key": "password", "value": "{{rabbitPassword}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"properties\":{\"content_type\":\"application/json\"},\"routing_key\":\"customer.status.change\",\"payload\":\"{\\\"eventId\\\":\\\"{{statusChangeEventId}}\\\",\\\"eventType\\\":\\\"CUSTOMER_STATUS_CHANGE\\\",\\\"customerId\\\":{{customerId}},\\\"status\\\":\\\"{{statusChangeTarget}}\\\"}\",\"payload_encoding\":\"string\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{rabbitUrl}}/api/exchanges/%2F/customer.events/publish",
+              "host": ["{{rabbitUrl}}"],
+              "path": ["api", "exchanges", "%2F", "customer.events", "publish"]
+            }
+          }
+        },
+        {
+          "name": "Get customer after the status change (USER) - 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// The consumer is asynchronous: re-run this request every POLL_INTERVAL_MS, at most MAX_POLLS times.",
+                  "const MAX_POLLS = 10;",
+                  "const POLL_INTERVAL_MS = 500;",
+                  "const json = pm.response.json();",
+                  "const expectedStatus = pm.collectionVariables.get('statusChangeTarget');",
+                  "const poll = Number(pm.collectionVariables.get('statusPollAttempt'));",
+                  "if (json.status !== expectedStatus && poll < MAX_POLLS) {",
+                  "  pm.collectionVariables.set('statusPollAttempt', poll + 1);",
+                  "  pm.execution.setNextRequest(pm.info.requestId);",
+                  "  setTimeout(() => {}, POLL_INTERVAL_MS);",
+                  "} else {",
+                  "  pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "  pm.test('status changed by the event and version incremented', () => {",
+                  "    pm.expect(json.status).to.eql(expectedStatus);",
+                  "    pm.expect(json.version).to.eql(Number(pm.collectionVariables.get('versionBefore')) + 1);",
+                  "  });",
+                  "  pm.collectionVariables.set('customerVersion', json.version);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{customerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Republish the same eventId (duplicate) - routed",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Same guard as the first publish: no customer, no event.",
+                  "if (!pm.collectionVariables.get('statusChangeTarget')) {",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Same eventId, but the status from before the change: if the duplicate were applied, the status would visibly revert.",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('routed to the status-change queue', () => pm.expect(pm.response.json().routed).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{rabbitUser}}", "type": "string" },
+                { "key": "password", "value": "{{rabbitPassword}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"properties\":{\"content_type\":\"application/json\"},\"routing_key\":\"customer.status.change\",\"payload\":\"{\\\"eventId\\\":\\\"{{statusChangeEventId}}\\\",\\\"eventType\\\":\\\"CUSTOMER_STATUS_CHANGE\\\",\\\"customerId\\\":{{customerId}},\\\"status\\\":\\\"{{statusBefore}}\\\"}\",\"payload_encoding\":\"string\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{rabbitUrl}}/api/exchanges/%2F/customer.events/publish",
+              "host": ["{{rabbitUrl}}"],
+              "path": ["api", "exchanges", "%2F", "customer.events", "publish"]
+            }
+          }
+        },
+        {
+          "name": "Get customer after the duplicate event (USER) - 200",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Give the consumer time to receive (and skip) the duplicate before reading the customer.",
+                  "const DUPLICATE_WAIT_MS = 2000;",
+                  "setTimeout(() => {}, DUPLICATE_WAIT_MS);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('duplicate eventId ignored: status and version unchanged', () => {",
+                  "  pm.expect(json.status).to.eql(pm.collectionVariables.get('statusChangeTarget'));",
+                  "  pm.expect(json.version).to.eql(Number(pm.collectionVariables.get('customerVersion')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{customerId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Score",
+      "item": [
+        {
+          "name": "Remove customers left with the WireMock CPFs - 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// The score scenarios need customers with these fixed CPFs; delete any left by an earlier run or manual test.",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const wireMockCpfs = ['52998224725', '11144477735', '39053344705', '93541134780'];",
+                  "pm.response.json().content",
+                  "  .filter(customer => wireMockCpfs.includes(customer.cpf))",
+                  "  .forEach(customer => pm.sendRequest({",
+                  "    url: pm.variables.get('baseUrl') + '/customers/' + customer.id,",
+                  "    method: 'DELETE',",
+                  "    header: { Authorization: 'Bearer ' + pm.collectionVariables.get('adminToken') }",
+                  "  }, (error, response) => pm.test('leftover customer ' + customer.id + ' deleted', () => {",
+                  "    pm.expect(error).to.equal(null);",
+                  "    pm.expect(response.code).to.eql(204);",
+                  "  })));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers?size=100",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers"],
+              "query": [{ "key": "size", "value": "100" }]
+            }
+          }
+        },
+        {
+          "name": "Create customer for score 200 - 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('scoreOkCustomerId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Score Postman OK\",\"cpf\":\"52998224725\",\"email\":\"score.ok@example.com\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/customers", "host": ["{{baseUrl}}"], "path": ["customers"] }
+          }
+        },
+        {
+          "name": "Get score - 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('score 750, LOW_RISK', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.score).to.eql(750);",
+                  "  pm.expect(json.classification).to.eql('LOW_RISK');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{scoreOkCustomerId}}/score",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{scoreOkCustomerId}}", "score"]
+            }
+          }
+        },
+        {
+          "name": "Create customer for score 404 - 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('scoreNotFoundCustomerId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Score Postman Not Found\",\"cpf\":\"11144477735\",\"email\":\"score.notfound@example.com\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/customers", "host": ["{{baseUrl}}"], "path": ["customers"] }
+          }
+        },
+        {
+          "name": "Get score not found - 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('title is Score not found', () => pm.expect(pm.response.json().title).to.eql('Score not found'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{scoreNotFoundCustomerId}}/score",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{scoreNotFoundCustomerId}}", "score"]
+            }
+          }
+        },
+        {
+          "name": "Create customer for score 503 - 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('scoreUnavailableCustomerId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Score Postman Unavailable\",\"cpf\":\"39053344705\",\"email\":\"score.unavailable@example.com\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/customers", "host": ["{{baseUrl}}"], "path": ["customers"] }
+          }
+        },
+        {
+          "name": "Get score unavailable - 503",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 503', () => pm.response.to.have.status(503));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{scoreUnavailableCustomerId}}/score",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{scoreUnavailableCustomerId}}", "score"]
+            }
+          }
+        },
+        {
+          "name": "Create customer for score 504 - 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('scoreTimeoutCustomerId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Score Postman Timeout\",\"cpf\":\"93541134780\",\"email\":\"score.timeout@example.com\"}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/customers", "host": ["{{baseUrl}}"], "path": ["customers"] }
+          }
+        },
+        {
+          "name": "Get score timeout - 504",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 504', () => pm.response.to.have.status(504));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{scoreTimeoutCustomerId}}/score",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{scoreTimeoutCustomerId}}", "score"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "item": [
+        {
+          "name": "Delete customer as USER - 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{customerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete customer - 204",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{customerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete customer again (idempotent) - 204",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{customerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get deleted customer - 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{customerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete score 200 customer - 204",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{scoreOkCustomerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{scoreOkCustomerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete score 404 customer - 204",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{scoreNotFoundCustomerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{scoreNotFoundCustomerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete score 503 customer - 204",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{scoreUnavailableCustomerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{scoreUnavailableCustomerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete score 504 customer - 204",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/customers/{{scoreTimeoutCustomerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["customers", "{{scoreTimeoutCustomerId}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
