@@ -11,14 +11,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CustomerSortTest {
 
+    private final CustomerSort customerSort = new CustomerSort();
+
     @Test
     void validated_unsorted_defaultsToIdAscending() {
-        assertThat(CustomerSort.validated(Sort.unsorted())).isEqualTo(Sort.by(Sort.Order.asc("id")));
+        assertThat(customerSort.validated(Sort.unsorted())).isEqualTo(Sort.by(Sort.Order.asc("id")));
     }
 
     @Test
     void validated_appendsIdAsTieBreaker() {
-        Sort sort = CustomerSort.validated(Sort.by(Sort.Order.desc("name")));
+        Sort sort = customerSort.validated(Sort.by(Sort.Order.desc("name")));
 
         assertThat(sort).isEqualTo(Sort.by(Sort.Order.desc("name"), Sort.Order.asc("id")));
     }
@@ -27,19 +29,19 @@ class CustomerSortTest {
     void validated_keepsRequestedIdDirection() {
         Sort requested = Sort.by(Sort.Order.desc("id"));
 
-        assertThat(CustomerSort.validated(requested)).isEqualTo(requested);
+        assertThat(customerSort.validated(requested)).isEqualTo(requested);
     }
 
     @Test
     void validated_acceptsEveryExposedProperty() {
         for (String property : CustomerSort.SORTABLE_PROPERTIES) {
-            assertThat(CustomerSort.validated(Sort.by(property)).getOrderFor(property)).as(property).isNotNull();
+            assertThat(customerSort.validated(Sort.by(property)).getOrderFor(property)).as(property).isNotNull();
         }
     }
 
     @Test
     void validated_unknownProperty_throwsBadRequestWithoutEchoingIt() {
-        assertBadRequest(() -> CustomerSort.validated(Sort.by("name", "password")));
+        assertBadRequest(() -> customerSort.validated(Sort.by("name", "password")));
         assertThat(CustomerSort.INVALID_SORT_MESSAGE)
                 .isEqualTo("Results can only be sorted by: id, name, cpf, email, status, createdAt, updatedAt.")
                 .doesNotContain("password");
@@ -47,7 +49,7 @@ class CustomerSortTest {
 
     @Test
     void validated_internalColumn_isRejected() {
-        assertBadRequest(() -> CustomerSort.validated(Sort.by("nameNormalized")));
+        assertBadRequest(() -> customerSort.validated(Sort.by("nameNormalized")));
     }
 
     private static void assertBadRequest(ThrowingCallable call) {

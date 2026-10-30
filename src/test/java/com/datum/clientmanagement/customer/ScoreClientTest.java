@@ -203,7 +203,7 @@ class ScoreClientTest {
                 .build());
         circuitBreaker = circuitBreakerRegistry.circuitBreaker(ScoreClient.RESILIENCE_INSTANCE);
         return new ScoreClient(new ScoreProperties(baseUrl, CONNECT_TIMEOUT, READ_TIMEOUT), retryRegistry,
-                circuitBreakerRegistry);
+                circuitBreakerRegistry, new CustomerFormats());
     }
 
     private static ResponseStatusException failure(ThrowingCallable call, HttpStatus status) {

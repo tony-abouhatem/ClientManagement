@@ -51,21 +51,16 @@ public class Customer {
     private Long version;
 
     protected Customer() {
-        // for JPA
+        // JPA
     }
 
-    private Customer(String name, String cpf, String email, CustomerStatus status, Instant now) {
+    public Customer(String name, String cpf, String email, CustomerStatus status, Instant now) {
         rename(name);
         this.cpf = cpf;
         this.email = email;
         this.status = status;
         this.createdAt = now;
         this.updatedAt = now;
-    }
-
-    /** New customer; {@code cpf} must already be normalized and valid. */
-    public static Customer create(String name, String cpf, String email, CustomerStatus status, Instant now) {
-        return new Customer(name, cpf, email, status, now);
     }
 
     public void update(String name, String email, CustomerStatus status, Instant now) {

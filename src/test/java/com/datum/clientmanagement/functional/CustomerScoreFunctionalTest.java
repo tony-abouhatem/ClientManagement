@@ -17,6 +17,7 @@ import com.datum.clientmanagement.ScoreWireMockConfiguration;
 import com.datum.clientmanagement.TestcontainersConfiguration;
 import com.datum.clientmanagement.config.ScoreProperties;
 import com.datum.clientmanagement.customer.Cpf;
+import com.datum.clientmanagement.customer.CustomerFormats;
 import com.datum.clientmanagement.customer.ScoreClient;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
@@ -264,7 +265,7 @@ class CustomerScoreFunctionalTest {
         ScoreClient unreachable = new ScoreClient(
                 new ScoreProperties(URI.create("http://localhost:" + closedPort()),
                         scoreProperties.connectTimeout(), scoreProperties.readTimeout()),
-                retryRegistry, circuitBreakerRegistry);
+                retryRegistry, circuitBreakerRegistry, new CustomerFormats());
         doAnswer(invocation -> unreachable.fetch(invocation.getArgument(0))).when(scoreClient).fetch(anyString());
 
         expectProblem(requestScore(customerId), 503);

@@ -16,9 +16,9 @@ import java.util.Map;
  */
 final class KeycloakRealmRoleConverter implements Converter<Jwt, Collection<GrantedAuthority>> {
 
-    static final String REALM_ACCESS_CLAIM = "realm_access";
-    static final String ROLES_KEY = "roles";
-    static final String ROLE_PREFIX = "ROLE_";
+    private static final String REALM_ACCESS_CLAIM = "realm_access";
+    private static final String ROLES_KEY = "roles";
+    private static final String ROLE_PREFIX = "ROLE_";
 
     @Override
     public Collection<GrantedAuthority> convert(Jwt jwt) {

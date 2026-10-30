@@ -32,7 +32,7 @@ import java.util.Objects;
         bearerFormat = "JWT", description = "Access token issued by Keycloak (realm client-management).")
 public class OpenApiConfig {
 
-    public static final String BEARER_JWT = "bearer-jwt";
+    static final String BEARER_JWT = "bearer-jwt";
 
     private static final String PROBLEM_DETAIL_SCHEMA = "#/components/schemas/" + ProblemDetail.class.getSimpleName();
     private static final String CLIENT_ERROR_PREFIX = "4";
@@ -59,14 +59,14 @@ public class OpenApiConfig {
     }
 
     @SuppressWarnings("rawtypes") // swagger-core's ModelConverters API returns raw Schema maps.
-    private static void registerProblemDetailSchema(OpenAPI openApi) {
+    private void registerProblemDetailSchema(OpenAPI openApi) {
         Map<String, Schema> schemas = ModelConverters.getInstance().read(ProblemDetail.class);
         Components components = Objects.requireNonNullElseGet(openApi.getComponents(), Components::new);
         schemas.forEach(components::addSchemas);
         openApi.setComponents(components);
     }
 
-    private static boolean isErrorCode(String code) {
+    private boolean isErrorCode(String code) {
         return code.startsWith(CLIENT_ERROR_PREFIX) || code.startsWith(SERVER_ERROR_PREFIX);
     }
 }

@@ -11,6 +11,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class CustomerFormatsTest {
 
+    private final CustomerFormats formats = new CustomerFormats();
+
     @Nested
     class NormalizeCpf {
 
@@ -38,19 +40,19 @@ class CustomerFormatsTest {
         @ParameterizedTest
         @ValueSource(strings = {"52998224725", "529.982.247-25"})
         void showsOnlyLastTwoDigits(String cpf) {
-            assertThat(CustomerFormats.maskCpf(cpf)).isEqualTo("*********25");
+            assertThat(formats.maskCpf(cpf)).isEqualTo("*********25");
         }
 
         @Test
         void invalidLengthCpf_stillShowsOnlyLastTwoCharacters() {
-            assertThat(CustomerFormats.maskCpf("52998224726000")).isEqualTo("*********00");
+            assertThat(formats.maskCpf("52998224726000")).isEqualTo("*********00");
         }
 
         @ParameterizedTest
         @NullAndEmptySource
         @ValueSource(strings = {"5", "52"})
         void tooShortOrMissing_revealsNothing(String cpf) {
-            assertThat(CustomerFormats.maskCpf(cpf)).isEqualTo("*********");
+            assertThat(formats.maskCpf(cpf)).isEqualTo("*********");
         }
     }
 

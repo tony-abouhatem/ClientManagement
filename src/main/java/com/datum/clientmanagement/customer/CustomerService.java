@@ -31,19 +31,23 @@ public class CustomerService {
             "Customer %d was modified by another request. Fetch it again and retry with the current version.";
     static final String CPF_CHANGE_MESSAGE = "The CPF of an existing customer cannot be changed.";
 
-    private static final Logger log = LoggerFactory.getLogger(CustomerService.class);
+    private final Logger log = LoggerFactory.getLogger(CustomerService.class);
 
     private final CustomerRepository repository;
     private final Clock clock;
     private final ScoreClient scoreClient;
     private final ApplicationEventPublisher events;
+    private final CustomerSpecifications specifications;
+    private final CustomerFormats formats;
 
     public CustomerService(CustomerRepository repository, Clock clock, ScoreClient scoreClient,
-            ApplicationEventPublisher events) {
+            ApplicationEventPublisher events, CustomerSpecifications specifications, CustomerFormats formats) {
         this.repository = repository;
         this.clock = clock;
         this.scoreClient = scoreClient;
         this.events = events;
+        this.specifications = specifications;
+        this.formats = formats;
     }
 
     @Transactional
@@ -52,11 +56,11 @@ public class CustomerService {
             logDuplicateCpf(request.cpf());
             throw new ResponseStatusException(HttpStatus.CONFLICT, DUPLICATE_CPF_MESSAGE);
         }
-        Customer customer = Customer.create(request.name(), request.cpf(), request.email(), request.statusOrDefault(),
+        Customer customer = new Customer(request.name(), request.cpf(), request.email(), request.statusOrDefault(),
                 now());
         try {
             Customer saved = repository.saveAndFlush(customer);
-            log.info("Customer {} created with CPF {}", saved.getId(), CustomerFormats.maskCpf(saved.getCpf()));
+            log.info("Customer {} created with CPF {}", saved.getId(), formats.maskCpf(saved.getCpf()));
             events.publishEvent(new CustomerCreatedEvent(saved.getId(), saved.getCreatedAt()));
             return saved;
         } catch (DataIntegrityViolationException exception) {
@@ -86,7 +90,7 @@ public class CustomerService {
 
     @Transactional(readOnly = true)
     public Page<Customer> find(CustomerFilter filter, Pageable pageable) {
-        return repository.findAll(CustomerSpecifications.matching(filter), pageable);
+        return repository.findAll(specifications.matching(filter), pageable);
     }
 
     @Transactional
@@ -137,11 +141,11 @@ public class CustomerService {
         return Instant.now(clock).truncatedTo(ChronoUnit.MICROS);
     }
 
-    private static void logDuplicateCpf(String cpf) {
-        log.info("Rejected customer creation: CPF {} is already registered", CustomerFormats.maskCpf(cpf));
+    private void logDuplicateCpf(String cpf) {
+        log.info("Rejected customer creation: CPF {} is already registered", formats.maskCpf(cpf));
     }
 
-    private static boolean isCpfUniqueViolation(DataIntegrityViolationException exception) {
+    private boolean isCpfUniqueViolation(DataIntegrityViolationException exception) {
         for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
             if (cause instanceof ConstraintViolationException violation) {
                 return CPF_UNIQUE_CONSTRAINT.equalsIgnoreCase(violation.getConstraintName());

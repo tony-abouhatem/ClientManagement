@@ -37,27 +37,29 @@ import java.util.function.Supplier;
 public class ScoreClient {
 
     public static final String RESILIENCE_INSTANCE = "score";
-    static final String SCORE_NOT_FOUND_TITLE = "Score not found";
-    static final String SCORE_NOT_FOUND_MESSAGE = "The Score service has no score for this customer.";
-    static final String UNAVAILABLE_MESSAGE = "The Score service is unavailable. Try again later.";
-    static final String TIMEOUT_MESSAGE = "The Score service did not respond in time.";
-    static final String INVALID_RESPONSE_MESSAGE = "The Score service returned an invalid response.";
+    private static final String SCORE_NOT_FOUND_TITLE = "Score not found";
+    private static final String SCORE_NOT_FOUND_MESSAGE = "The Score service has no score for this customer.";
+    private static final String UNAVAILABLE_MESSAGE = "The Score service is unavailable. Try again later.";
+    private static final String TIMEOUT_MESSAGE = "The Score service did not respond in time.";
+    private static final String INVALID_RESPONSE_MESSAGE = "The Score service returned an invalid response.";
 
     private static final String SCORE_PATH = "/scores/{cpf}";
-    private static final Logger log = LoggerFactory.getLogger(ScoreClient.class);
+    private final Logger log = LoggerFactory.getLogger(ScoreClient.class);
 
     private final RestClient restClient;
     private final Retry retry;
     private final CircuitBreaker circuitBreaker;
+    private final CustomerFormats formats;
 
     public ScoreClient(ScoreProperties properties, RetryRegistry retryRegistry,
-            CircuitBreakerRegistry circuitBreakerRegistry) {
+            CircuitBreakerRegistry circuitBreakerRegistry, CustomerFormats formats) {
         this.restClient = RestClient.builder()
                 .baseUrl(properties.baseUrl().toString())
                 .requestFactory(requestFactory(properties))
                 .build();
         this.retry = retryRegistry.retry(RESILIENCE_INSTANCE);
         this.circuitBreaker = circuitBreakerRegistry.circuitBreaker(RESILIENCE_INSTANCE);
+        this.formats = formats;
     }
 
     /**
@@ -92,7 +94,7 @@ public class ScoreClient {
         }
     }
 
-    private static ExternalScore requireScore(ExternalScore score, String cpf) {
+    private ExternalScore requireScore(ExternalScore score, String cpf) {
         if (score == null || score.score() == null) {
             log.warn("Score for CPF {} has no score value", mask(cpf));
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, INVALID_RESPONSE_MESSAGE);
@@ -101,14 +103,14 @@ public class ScoreClient {
     }
 
     /** Its own title, so clients can tell it apart from "customer not found" (NFR-5). */
-    private static ResponseStatusException scoreNotFound() {
+    private ResponseStatusException scoreNotFound() {
         ResponseStatusException exception = new ResponseStatusException(HttpStatus.NOT_FOUND, SCORE_NOT_FOUND_MESSAGE);
         exception.getBody().setTitle(SCORE_NOT_FOUND_TITLE);
         return exception;
     }
 
     /** Only a read timeout means "slow" (504); refused connections and connect timeouts mean "unavailable" (503). */
-    private static ResponseStatusException ioFailure(ResourceAccessException exception, String cpf) {
+    private ResponseStatusException ioFailure(ResourceAccessException exception, String cpf) {
         Throwable cause = exception.getCause();
         if (cause instanceof HttpTimeoutException && !(cause instanceof HttpConnectTimeoutException)) {
             log.warn("Score call for CPF {} timed out waiting for the response", mask(cpf));
@@ -119,7 +121,7 @@ public class ScoreClient {
         return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, UNAVAILABLE_MESSAGE);
     }
 
-    private static ClientHttpRequestFactory requestFactory(ScoreProperties properties) {
+    private ClientHttpRequestFactory requestFactory(ScoreProperties properties) {
         HttpClient httpClient = HttpClient.newBuilder()
                 // Plain HTTP/1.1: the default HTTP/2 mode would send an h2c upgrade request to the Score service.
                 .version(HttpClient.Version.HTTP_1_1)
@@ -130,7 +132,7 @@ public class ScoreClient {
         return requestFactory;
     }
 
-    private static String mask(String cpf) {
-        return CustomerFormats.maskCpf(cpf);
+    private String mask(String cpf) {
+        return formats.maskCpf(cpf);
     }
 }

@@ -55,6 +55,7 @@ public final class CustomerRequests {
         }
     }
 
+    // Static: called from the nested records' compact constructors, which have no CustomerRequests instance.
     private static String strip(String value) {
         return value == null ? null : value.strip();
     }

@@ -49,7 +49,8 @@ class CustomerServiceTest {
     private final ScoreClient scoreClient = mock(ScoreClient.class);
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final CustomerService service =
-            new CustomerService(repository, Clock.fixed(NOW, ZoneOffset.UTC), scoreClient, events);
+            new CustomerService(repository, Clock.fixed(NOW, ZoneOffset.UTC), scoreClient, events,
+                    new CustomerSpecifications(), new CustomerFormats());
 
     @Test
     void create_newCpf_savesNormalizedCustomerWithDefaults() {
@@ -260,7 +261,7 @@ class CustomerServiceTest {
     }
 
     private Customer storedCustomer(long version) {
-        Customer customer = Customer.create("Ana Souza", CPF, "ana@example.com", CustomerStatus.ACTIVE, CREATED_AT);
+        Customer customer = new Customer("Ana Souza", CPF, "ana@example.com", CustomerStatus.ACTIVE, CREATED_AT);
         ReflectionTestUtils.setField(customer, "id", CUSTOMER_ID);
         ReflectionTestUtils.setField(customer, "version", version);
         when(repository.findById(CUSTOMER_ID)).thenReturn(Optional.of(customer));

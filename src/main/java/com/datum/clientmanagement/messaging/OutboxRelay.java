@@ -32,8 +32,8 @@ public class OutboxRelay {
 
     static final String RETRY_INSTANCE = "outbox";
 
-    private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
-    private static final Limit ONE_ROW = Limit.of(1);
+    private final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
+    private final Limit ONE_ROW = Limit.of(1);
 
     private final OutboxEventRepository outbox;
     private final ConfirmedPublisher publisher;

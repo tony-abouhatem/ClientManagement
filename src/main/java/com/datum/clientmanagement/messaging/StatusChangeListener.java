@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 @Component
 class StatusChangeListener {
 
-    private static final Logger log = LoggerFactory.getLogger(StatusChangeListener.class);
+    private final Logger log = LoggerFactory.getLogger(StatusChangeListener.class);
 
     private final StatusChangeMessageParser parser;
     private final StatusChangeProcessor processor;

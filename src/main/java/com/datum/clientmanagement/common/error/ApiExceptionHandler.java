@@ -34,11 +34,11 @@ import java.util.stream.Stream;
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
-    static final String ERRORS_PROPERTY = "errors";
-    static final String VALIDATION_DETAIL = "One or more fields are invalid.";
+    private static final String ERRORS_PROPERTY = "errors";
+    private static final String VALIDATION_DETAIL = "One or more fields are invalid.";
     static final String UNEXPECTED_ERROR_DETAIL = "An unexpected error occurred.";
 
-    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
+    private final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
     private static final String MESSAGE_SEPARATOR = "; ";
     private static final String FALLBACK_FIELD_MESSAGE = "is invalid";
 
@@ -69,19 +69,19 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /** One entry per invalid field (AC-4), sorted by field; several broken rules on a field share one message. */
-    static List<FieldValidationError> fieldErrors(List<FieldError> errors) {
+    List<FieldValidationError> fieldErrors(List<FieldError> errors) {
         return groupedByField(errors.stream()
                 .map(error -> new FieldValidationError(error.getField(), messageOf(error))));
     }
 
     /** Same shape as {@link #fieldErrors}, with the request parameter name as the field. */
-    static List<FieldValidationError> parameterErrors(List<ParameterValidationResult> results) {
+    List<FieldValidationError> parameterErrors(List<ParameterValidationResult> results) {
         return groupedByField(results.stream().flatMap(result -> result.getResolvableErrors().stream()
                 .map(error -> new FieldValidationError(result.getMethodParameter().getParameterName(),
                         messageOf(error)))));
     }
 
-    private static List<FieldValidationError> groupedByField(Stream<FieldValidationError> errors) {
+    private List<FieldValidationError> groupedByField(Stream<FieldValidationError> errors) {
         Map<String, TreeSet<String>> messagesByField = errors.collect(Collectors.groupingBy(
                 FieldValidationError::field, TreeMap::new,
                 Collectors.mapping(FieldValidationError::message, Collectors.toCollection(TreeSet::new))));
@@ -90,7 +90,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                 .toList();
     }
 
-    private static String messageOf(MessageSourceResolvable error) {
+    private String messageOf(MessageSourceResolvable error) {
         String message = error.getDefaultMessage();
         return message == null ? FALLBACK_FIELD_MESSAGE : message;
     }

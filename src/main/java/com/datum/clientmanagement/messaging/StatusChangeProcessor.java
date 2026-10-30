@@ -18,7 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Component
 public class StatusChangeProcessor {
 
-    private static final Logger log = LoggerFactory.getLogger(StatusChangeProcessor.class);
+    private final Logger log = LoggerFactory.getLogger(StatusChangeProcessor.class);
 
     private final ProcessedEventStore processedEvents;
     private final CustomerService customerService;

@@ -37,17 +37,19 @@ class CustomerController {
     static final String BASE_PATH = "/customers";
 
     static final String UNAUTHORIZED = "Missing, expired or invalid access token";
-    private static final String FORBIDDEN = "The token lacks the ADMIN role";
+    private final String FORBIDDEN = "The token lacks the ADMIN role";
     private static final String INVALID_FIELDS = "Invalid fields; errors[] names each one";
     private static final String INVALID_QUERY = "Invalid status, page, size or sort; errors[] names each parameter";
     private static final String CUSTOMER_NOT_FOUND = "No customer exists with this id";
 
     private final CustomerService customerService;
     private final PaginationProperties pagination;
+    private final CustomerSort customerSort;
 
-    CustomerController(CustomerService customerService, PaginationProperties pagination) {
+    CustomerController(CustomerService customerService, PaginationProperties pagination, CustomerSort customerSort) {
         this.customerService = customerService;
         this.pagination = pagination;
+        this.customerSort = customerSort;
     }
 
     @PostMapping
@@ -140,7 +142,7 @@ class CustomerController {
 
     private PagedModel<CustomerResponse> find(CustomerFilter filter, Integer page, Integer size, Sort sort) {
         PageRequest pageRequest = PageRequest.of(pagination.pageOrDefault(page), pagination.sizeOrDefault(size),
-                CustomerSort.validated(sort));
+                customerSort.validated(sort));
         return new PagedModel<>(customerService.find(filter, pageRequest).map(CustomerResponse::from));
     }
 }

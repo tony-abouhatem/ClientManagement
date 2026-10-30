@@ -31,7 +31,7 @@ class ApiExceptionHandlerTest {
 
     @Test
     void fieldErrors_oneEntryPerFieldSortedByField() {
-        List<FieldValidationError> errors = ApiExceptionHandler.fieldErrors(List.of(
+        List<FieldValidationError> errors = handler.fieldErrors(List.of(
                 new FieldError(OBJECT_NAME, "name", "must not be blank"),
                 new FieldError(OBJECT_NAME, "email", "must be a well-formed email address"),
                 new FieldError(OBJECT_NAME, "email", "size must be between 0 and 254"),
@@ -45,7 +45,7 @@ class ApiExceptionHandlerTest {
 
     @Test
     void parameterErrors_namedByRequestParameterAndSortedByName() throws Exception {
-        List<FieldValidationError> errors = ApiExceptionHandler.parameterErrors(List.of(
+        List<FieldValidationError> errors = handler.parameterErrors(List.of(
                 parameterResult(SIZE_PARAMETER, 0, "must be between 1 and 100"),
                 parameterResult(PAGE_PARAMETER, -1, "must be greater than or equal to 0", null)));
 

@@ -26,7 +26,7 @@ import java.util.UUID;
 @Component
 class CustomerCreatedPublisher {
 
-    private static final Logger log = LoggerFactory.getLogger(CustomerCreatedPublisher.class);
+    private final Logger log = LoggerFactory.getLogger(CustomerCreatedPublisher.class);
 
     private final ConfirmedPublisher publisher;
     private final OutboxEventRepository outbox;
@@ -75,7 +75,7 @@ class CustomerCreatedPublisher {
      * The message body (AC-1), in this field order. Values stay typed so the JsonMapper writes eventId as a UUID
      * string and createdAt as an ISO-8601 UTC string. Consumers dedupe by eventId.
      */
-    private static Map<String, Object> payloadOf(UUID eventId, CustomerCreatedEvent event) {
+    private Map<String, Object> payloadOf(UUID eventId, CustomerCreatedEvent event) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("eventId", eventId);
         payload.put("eventType", EventType.CUSTOMER_CREATED);

@@ -18,10 +18,10 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 @Configuration(proxyBeanMethods = false)
 public class SecurityConfig {
 
-    static final String ROLE_USER = "USER";
-    static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_USER = "USER";
+    private static final String ROLE_ADMIN = "ADMIN";
 
-    private static final String[] PUBLIC_ENDPOINTS =
+    private final String[] PUBLIC_ENDPOINTS =
             {"/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"};
     private static final String CUSTOMER_ENDPOINTS = "/customers/**";
 

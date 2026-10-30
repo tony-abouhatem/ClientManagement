@@ -64,7 +64,7 @@ class ConfirmedPublisher {
     }
 
     // Spring AMQP sets the returned message before it completes the confirm future, so it is safe to check here.
-    private static void requireConfirmedAndRouted(CorrelationData.Confirm confirm, ReturnedMessage returned) {
+    private void requireConfirmedAndRouted(CorrelationData.Confirm confirm, ReturnedMessage returned) {
         if (!confirm.ack()) {
             throw new PublishFailedException(NACK, "RabbitMQ nacked the message: " + confirm.reason());
         }
@@ -74,7 +74,7 @@ class ConfirmedPublisher {
         }
     }
 
-    private static Message toMessage(UUID eventId, String jsonPayload) {
+    private Message toMessage(UUID eventId, String jsonPayload) {
         return MessageBuilder.withBody(jsonPayload.getBytes(StandardCharsets.UTF_8))
                 .setContentType(MessageProperties.CONTENT_TYPE_JSON)
                 .setContentEncoding(StandardCharsets.UTF_8.name())

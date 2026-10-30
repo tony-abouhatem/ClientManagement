@@ -10,6 +10,7 @@ package com.datum.clientmanagement.nonfunctional;
 import com.datum.clientmanagement.ScoreWireMockConfiguration;
 import com.datum.clientmanagement.TestcontainersConfiguration;
 import com.datum.clientmanagement.config.ScoreProperties;
+import com.datum.clientmanagement.customer.CustomerFormats;
 import com.datum.clientmanagement.customer.ScoreClient;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
@@ -322,7 +323,8 @@ class ScoreResilienceNfrTest {
     /** Sends the endpoint's Score calls to another address, through a real client sharing retry and breaker. */
     private void routeScoreCallsTo(String baseUrl) {
         ScoreClient redirected = new ScoreClient(new ScoreProperties(URI.create(baseUrl),
-                scoreProperties.connectTimeout(), scoreProperties.readTimeout()), retryRegistry, circuitBreakerRegistry);
+                scoreProperties.connectTimeout(), scoreProperties.readTimeout()), retryRegistry, circuitBreakerRegistry,
+                new CustomerFormats());
         doAnswer(invocation -> redirected.fetch(invocation.getArgument(0))).when(scoreClient).fetch(anyString());
     }
 

@@ -31,10 +31,10 @@ public class MessagingTopology {
     public static final String CUSTOMER_CREATED_QUEUE = "customer.created";
     public static final String STATUS_CHANGE_ROUTING_KEY = "customer.status.change";
     public static final String STATUS_CHANGE_QUEUE = "customer.status-change";
-    public static final String DEAD_LETTER_EXCHANGE = "customer.dlx";
+    private static final String DEAD_LETTER_EXCHANGE = "customer.dlx";
     public static final String STATUS_CHANGE_DEAD_LETTER_QUEUE = "customer.status-change.dlq";
 
-    private static final Logger log = LoggerFactory.getLogger(MessagingTopology.class);
+    private final Logger log = LoggerFactory.getLogger(MessagingTopology.class);
 
     @Bean
     TopicExchange customerEventsExchange() {
@@ -90,7 +90,7 @@ public class MessagingTopology {
         return event -> declareTopology(amqpAdmin);
     }
 
-    private static void declareTopology(AmqpAdmin amqpAdmin) {
+    private void declareTopology(AmqpAdmin amqpAdmin) {
         try {
             amqpAdmin.initialize();
         } catch (AmqpException exception) {
