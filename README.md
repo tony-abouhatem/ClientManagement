@@ -257,7 +257,8 @@ MSYS_NO_PATHCONV=1 docker run --rm --add-host=host.docker.internal:host-gateway 
 
 ## Estrutura do projeto
 ```
-src/main/java/com/datum/clientmanagement/   customer, messaging, security, common/error, config
+src/main/java/com/datum/clientmanagement/   controller, service, repository, model, dto, event, messaging,
+                                            validation, util, exception, config, security
 src/main/resources/db/migration/            migrações Flyway
 src/test/java/com/datum/clientmanagement/   unitários, functional/, nonfunctional/
 docker/                                     realm Keycloak, stubs WireMock

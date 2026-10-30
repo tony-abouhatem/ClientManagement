@@ -16,21 +16,21 @@ import java.util.Map;
  */
 final class KeycloakRealmRoleConverter implements Converter<Jwt, Collection<GrantedAuthority>> {
 
-    static final String REALM_ACCESS_CLAIM = "realm_access";
-    static final String ROLES_KEY = "roles";
-    static final String ROLE_PREFIX = "ROLE_";
+	private final String ROLE_PREFIX = "ROLE_";
 
-    @Override
-    public Collection<GrantedAuthority> convert(Jwt jwt) {
-        if (!(jwt.getClaim(REALM_ACCESS_CLAIM) instanceof Map<?, ?> realmAccess)) {
-            return List.of();
-        }
-        if (!(realmAccess.get(ROLES_KEY) instanceof Collection<?> roles)) {
-            return List.of();
-        }
-        return roles.stream()
-                .filter(String.class::isInstance)
-                .map(role -> (GrantedAuthority) new SimpleGrantedAuthority(ROLE_PREFIX + role))
-                .toList();
-    }
+	@Override
+	public Collection<GrantedAuthority> convert(Jwt jwt) {
+		List<GrantedAuthority> grantedAuthorities = List.of();
+
+		if (jwt.getClaim("realm_access") instanceof Map<?, ?> realmAccess &&
+				realmAccess.get("roles") instanceof Collection<?> roles) {
+
+			grantedAuthorities = roles.stream()
+					.filter(String.class::isInstance)
+					.map(role -> (GrantedAuthority) new SimpleGrantedAuthority(ROLE_PREFIX + role))
+					.toList();
+		}
+
+		return grantedAuthorities;
+	}
 }

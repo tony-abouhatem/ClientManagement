@@ -14,47 +14,58 @@ import java.time.Duration;
 /** Stops and restarts the RabbitMQ container of {@link RestartableRabbitConfiguration} (same container, same port). */
 public class RabbitOutage {
 
-    private static final Duration READY_TIMEOUT = Duration.ofSeconds(60);
-    private static final Duration READY_POLL_INTERVAL = Duration.ofMillis(250);
+	private static final Duration READY_TIMEOUT = Duration.ofSeconds(60);
+	private static final Duration READY_POLL_INTERVAL = Duration.ofMillis(250);
 
-    private final RabbitMQContainer container;
-    private final ConnectionFactory connectionFactory;
-    private final DockerClient docker = DockerClientFactory.instance().client();
+	private final RabbitMQContainer container;
+	private final ConnectionFactory connectionFactory;
+	private final DockerClient docker = DockerClientFactory.instance().client();
 
-    RabbitOutage(RabbitMQContainer container, ConnectionFactory connectionFactory) {
-        this.container = container;
-        this.connectionFactory = connectionFactory;
-    }
+	RabbitOutage(RabbitMQContainer container, ConnectionFactory connectionFactory) {
+		this.container = container;
+		this.connectionFactory = connectionFactory;
+	}
 
-    public void stop() {
-        docker.stopContainerCmd(container.getContainerId()).exec();
-        // Drop the app's cached connection now instead of on its first failed use.
-        if (connectionFactory instanceof AbstractConnectionFactory cached) {
-            cached.resetConnection();
-        }
-    }
+	public void stop() {
+		docker.stopContainerCmd(container.getContainerId()).exec();
+		// Drop the app's cached connection now instead of on its first failed use.
+		if (connectionFactory instanceof AbstractConnectionFactory cached)
+			cached.resetConnection();
+	}
 
-    /** Starts the container again and returns at once; RabbitMQ needs a few more seconds to accept connections. */
-    public void start() {
-        docker.startContainerCmd(container.getContainerId()).exec();
-    }
+	/** Starts the container again and returns at once; RabbitMQ needs a few more seconds to accept connections. */
+	public void start() {
+		docker.startContainerCmd(container.getContainerId()).exec();
+	}
 
-    public boolean isRunning() {
-        return Boolean.TRUE.equals(docker.inspectContainerCmd(container.getContainerId()).exec().getState().getRunning());
-    }
+	/**
+	 * Freezes the broker: the app's TCP connection stays open and writes still succeed, but RabbitMQ answers nothing
+	 * (no confirms) until {@link #unpause()}.
+	 */
+	public void pause() {
+		docker.pauseContainerCmd(container.getContainerId()).exec();
+	}
 
-    /** Blocks until the app can open an AMQP connection again. */
-    public void awaitReady() {
-        Awaitility.await()
-                .atMost(READY_TIMEOUT)
-                .pollInterval(READY_POLL_INTERVAL)
-                .ignoreExceptionsInstanceOf(AmqpException.class)
-                .until(this::canConnect);
-    }
+	public void unpause() {
+		docker.unpauseContainerCmd(container.getContainerId()).exec();
+	}
 
-    private boolean canConnect() {
-        try (Connection connection = connectionFactory.createConnection()) {
-            return connection.isOpen();
-        }
-    }
+	public boolean isRunning() {
+		return Boolean.TRUE.equals(docker.inspectContainerCmd(container.getContainerId()).exec().getState().getRunning());
+	}
+
+	/** Blocks until the app can open an AMQP connection again. */
+	public void awaitReady() {
+		Awaitility.await()
+				.atMost(READY_TIMEOUT)
+				.pollInterval(READY_POLL_INTERVAL)
+				.ignoreExceptionsInstanceOf(AmqpException.class)
+				.until(this::canConnect);
+	}
+
+	private boolean canConnect() {
+		try (Connection connection = connectionFactory.createConnection()) {
+			return connection.isOpen();
+		}
+	}
 }

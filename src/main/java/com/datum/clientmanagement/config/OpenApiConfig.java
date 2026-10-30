@@ -25,48 +25,52 @@ import java.util.Objects;
  */
 @Configuration(proxyBeanMethods = false)
 @OpenAPIDefinition(
-        info = @Info(title = "ClientManagement API", version = "v1",
-                description = "Customer CRUD, search and external score lookup."),
-        security = @SecurityRequirement(name = OpenApiConfig.BEARER_JWT))
+		info = @Info(title = "ClientManagement API", version = "v1",
+				description = "Customer CRUD, search and external score lookup."),
+		security = @SecurityRequirement(name = OpenApiConfig.BEARER_JWT))
 @SecurityScheme(name = OpenApiConfig.BEARER_JWT, type = SecuritySchemeType.HTTP, scheme = "bearer",
-        bearerFormat = "JWT", description = "Access token issued by Keycloak (realm client-management).")
+		bearerFormat = "JWT", description = "Access token issued by Keycloak (realm client-management).")
 public class OpenApiConfig {
 
-    public static final String BEARER_JWT = "bearer-jwt";
+	static final String BEARER_JWT = "bearer-jwt";
 
-    private static final String PROBLEM_DETAIL_SCHEMA = "#/components/schemas/" + ProblemDetail.class.getSimpleName();
-    private static final String CLIENT_ERROR_PREFIX = "4";
-    private static final String SERVER_ERROR_PREFIX = "5";
+	private final String PROBLEM_DETAIL_SCHEMA = "#/components/schemas/" + ProblemDetail.class.getSimpleName();
 
-    /**
-     * The controller annotations only declare which error codes an operation returns; their body is always a
-     * ProblemDetail, so it is set here once instead of being repeated on every annotation.
-     */
-    @Bean
-    OpenApiCustomizer problemDetailErrorResponses() {
-        return openApi -> {
-            registerProblemDetailSchema(openApi);
-            Content problemContent = new Content().addMediaType(
-                    org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON_VALUE,
-                    new MediaType().schema(new Schema<>().$ref(PROBLEM_DETAIL_SCHEMA)));
-            openApi.getPaths().values().stream()
-                    .flatMap(path -> path.readOperations().stream())
-                    .flatMap(operation -> operation.getResponses().entrySet().stream())
-                    .filter(response -> isErrorCode(response.getKey()))
-                    .map(Map.Entry::getValue)
-                    .forEach(response -> response.setContent(problemContent));
-        };
-    }
+	/**
+	 * The controller annotations only declare which error codes an operation returns; their body is always a
+	 * ProblemDetail, so it is set here once instead of being repeated on every annotation.
+	 */
+	@Bean
+	OpenApiCustomizer problemDetailErrorResponses() {
+		return openApi -> {
+			registerProblemDetailSchema(openApi);
 
-    @SuppressWarnings("rawtypes") // swagger-core's ModelConverters API returns raw Schema maps.
-    private static void registerProblemDetailSchema(OpenAPI openApi) {
-        Map<String, Schema> schemas = ModelConverters.getInstance().read(ProblemDetail.class);
-        Components components = Objects.requireNonNullElseGet(openApi.getComponents(), Components::new);
-        schemas.forEach(components::addSchemas);
-        openApi.setComponents(components);
-    }
+			openApi.getPaths().values().stream()
+					.flatMap(path -> path.readOperations().stream())
+					.flatMap(operation -> operation.getResponses().entrySet().stream())
+					.filter(response -> isErrorCode(response.getKey()))
+					.map(Map.Entry::getValue)
+					.forEach(response -> response.setContent(getProblemContent()));
+		};
+	}
 
-    private static boolean isErrorCode(String code) {
-        return code.startsWith(CLIENT_ERROR_PREFIX) || code.startsWith(SERVER_ERROR_PREFIX);
-    }
+	private Content getProblemContent() {
+		return new Content().addMediaType(
+				org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+				new MediaType().schema(new Schema<>().$ref(PROBLEM_DETAIL_SCHEMA)));
+	}
+
+	@SuppressWarnings("rawtypes") // swagger-core's ModelConverters API returns raw Schema maps.
+	private void registerProblemDetailSchema(OpenAPI openApi) {
+		Map<String, Schema> schemas = ModelConverters.getInstance().read(ProblemDetail.class);
+		Components components = Objects.requireNonNullElseGet(openApi.getComponents(), Components::new);
+		schemas.forEach(components::addSchemas);
+		openApi.setComponents(components);
+	}
+
+	private boolean isErrorCode(String code) {
+		char SERVER_ERROR_PREFIX = '5';
+		char CLIENT_ERROR_PREFIX = '4';
+		return code.charAt(0) == SERVER_ERROR_PREFIX || code.charAt(0) == CLIENT_ERROR_PREFIX;
+	}
 }

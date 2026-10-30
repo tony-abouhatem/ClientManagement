@@ -14,19 +14,19 @@ import java.io.IOException;
  */
 final class ProblemDetailAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
-    static final String DETAIL = "A valid bearer token is required to access this resource.";
+	static final String DETAIL = "A valid bearer token is required to access this resource.";
 
-    private final BearerTokenAuthenticationEntryPoint bearerChallenge = new BearerTokenAuthenticationEntryPoint();
-    private final ProblemDetailResponseWriter problemWriter;
+	private final BearerTokenAuthenticationEntryPoint bearerChallenge = new BearerTokenAuthenticationEntryPoint();
+	private final ProblemDetailResponseWriter problemWriter;
 
-    ProblemDetailAuthenticationEntryPoint(ProblemDetailResponseWriter problemWriter) {
-        this.problemWriter = problemWriter;
-    }
+	ProblemDetailAuthenticationEntryPoint(ProblemDetailResponseWriter problemWriter) {
+		this.problemWriter = problemWriter;
+	}
 
-    @Override
-    public void commence(HttpServletRequest request, HttpServletResponse response,
-                         AuthenticationException authException) throws IOException {
-        bearerChallenge.commence(request, response, authException);
-        problemWriter.write(request, response, DETAIL);
-    }
+	@Override
+	public void commence(HttpServletRequest request, HttpServletResponse response,
+						 AuthenticationException authException) throws IOException {
+		bearerChallenge.commence(request, response, authException);
+		problemWriter.write(request, response, DETAIL);
+	}
 }

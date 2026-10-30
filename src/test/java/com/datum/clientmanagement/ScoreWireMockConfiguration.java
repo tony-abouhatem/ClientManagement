@@ -15,16 +15,16 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
 @TestConfiguration(proxyBeanMethods = false)
 public class ScoreWireMockConfiguration {
 
-    @Bean(destroyMethod = "stop")
-    WireMockServer scoreWireMock() {
-        // Non-verbose: verbose WireMock logging prints request URLs, which contain the CPF (NFR-3).
-        WireMockServer server = new WireMockServer(options().dynamicPort().notifier(new Slf4jNotifier(false)));
-        server.start();
-        return server;
-    }
+	@Bean(destroyMethod = "stop")
+	WireMockServer scoreWireMock() {
+		// Non-verbose: verbose WireMock logging prints request URLs, which contain the CPF (NFR-3).
+		WireMockServer server = new WireMockServer(options().dynamicPort().notifier(new Slf4jNotifier(false)));
+		server.start();
+		return server;
+	}
 
-    @Bean
-    DynamicPropertyRegistrar scoreBaseUrl(WireMockServer scoreWireMock) {
-        return registry -> registry.add("app.score.base-url", scoreWireMock::baseUrl);
-    }
+	@Bean
+	DynamicPropertyRegistrar scoreBaseUrl(WireMockServer scoreWireMock) {
+		return registry -> registry.add("app.score.base-url", scoreWireMock::baseUrl);
+	}
 }

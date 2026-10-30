@@ -9,8 +9,8 @@ import java.time.Clock;
 @Configuration(proxyBeanMethods = false)
 public class ClockConfig {
 
-    @Bean
-    Clock clock() {
-        return Clock.systemUTC();
-    }
+	@Bean
+	Clock clock() {
+		return Clock.systemUTC();
+	}
 }

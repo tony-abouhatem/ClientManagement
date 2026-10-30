@@ -24,7 +24,7 @@ Read first: `docs/PRODUCT.md` (scope, rules, NFRs), `docs/ARCHITECTURE.md` (desi
 | Full stack | `docker compose up --build` |
 
 ## Folder conventions
-- `src/main/java/com/datum/clientmanagement/{customer,messaging,security,common/error,config}`
+- `src/main/java/com/datum/clientmanagement/{controller,service,repository,model,dto,messaging,validation,util,exception,config,security}`: packages by technical role, not by feature (see the Package layout section of ARCHITECTURE.md).
 - `src/main/resources/application.yaml`: defaults with `${ENV:default}` placeholders.
 - `src/main/resources/db/migration/V<n>__<desc>.sql`: Flyway, the only place schema changes happen.
 - `docker/keycloak/` (realm JSON), `docker/wiremock/mappings/` and `__files/`: compose assets.
@@ -33,7 +33,7 @@ Read first: `docs/PRODUCT.md` (scope, rules, NFRs), `docs/ARCHITECTURE.md` (desi
 
 ## Tests
 - JUnit 5, AssertJ, Spring Boot Test, `spring-security-test` (`jwt()` post-processor for roles), Testcontainers (Postgres, RabbitMQ), WireMock.
-- **Unit tests**: next to the package they test, e.g. `src/test/java/com/datum/clientmanagement/customer/CpfValidatorTest.java`.
+- **Unit tests**: next to the package they test, e.g. `src/test/java/com/datum/clientmanagement/validation/CpfConstraintTest.java`.
 - **Functional (acceptance) tests**: `src/test/java/com/datum/clientmanagement/functional/`. One class per ticket/feature.
 - **Non-functional tests**: `src/test/java/com/datum/clientmanagement/nonfunctional/` (timeouts, circuit breaker, idempotency, security, startup without Rabbit). Reference the NFR ids from PRODUCT.md.
 - **Test names**: the method name describes the behaviour only (`createCustomer_returns201`). Don't put AC/NFR ids or `edge` in method names. Link each test to its source in a comment above it (`// AC-1 (ticket 03)`, `// NFR-9`) and describe it in `@DisplayName`.

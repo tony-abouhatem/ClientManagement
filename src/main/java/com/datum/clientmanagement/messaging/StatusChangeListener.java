@@ -1,5 +1,9 @@
 package com.datum.clientmanagement.messaging;
 
+import com.datum.clientmanagement.config.ListenerRetryConfiguration;
+import com.datum.clientmanagement.config.MessagingTopology;
+import com.datum.clientmanagement.exception.InvalidStatusChangeException;
+import com.datum.clientmanagement.service.StatusChangeProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Message;
@@ -15,23 +19,23 @@ import org.springframework.stereotype.Component;
 @Component
 class StatusChangeListener {
 
-    private static final Logger log = LoggerFactory.getLogger(StatusChangeListener.class);
+	private final Logger log = LoggerFactory.getLogger(StatusChangeListener.class);
 
-    private final StatusChangeMessageParser parser;
-    private final StatusChangeProcessor processor;
+	private final StatusChangeMessageParser parser;
+	private final StatusChangeProcessor processor;
 
-    StatusChangeListener(StatusChangeMessageParser parser, StatusChangeProcessor processor) {
-        this.parser = parser;
-        this.processor = processor;
-    }
+	StatusChangeListener(StatusChangeMessageParser parser, StatusChangeProcessor processor) {
+		this.parser = parser;
+		this.processor = processor;
+	}
 
-    @RabbitListener(queues = MessagingTopology.STATUS_CHANGE_QUEUE)
-    void onStatusChange(Message message) {
-        try {
-            processor.process(parser.parse(message));
-        } catch (InvalidStatusChangeException exception) {
-            log.warn("Status change message rejected, sending it to the DLQ without retry: {}", exception.getMessage());
-            throw exception;
-        }
-    }
+	@RabbitListener(queues = MessagingTopology.STATUS_CHANGE_QUEUE)
+	void onStatusChange(Message message) {
+		try {
+			processor.process(parser.parse(message));
+		} catch (InvalidStatusChangeException exception) {
+			log.warn("Status change message rejected, sending it to the DLQ without retry: {}", exception.getMessage());
+			throw exception;
+		}
+	}
 }

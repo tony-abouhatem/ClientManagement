@@ -12,18 +12,19 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties("app.pagination")
 public record PaginationProperties(
-        @PositiveOrZero int defaultPage,
-        @Range(min = PaginationProperties.MIN_SIZE, max = PaginationProperties.MAX_SIZE) int defaultSize) {
+	@PositiveOrZero int defaultPage,
+	@Range(min = PaginationProperties.MIN_SIZE, max = PaginationProperties.MAX_SIZE) int defaultSize
+) {
 
-    // NFR-14 limits on the requested page size; values outside them are rejected with 400, never clamped.
-    public static final int MIN_SIZE = 1;
-    public static final int MAX_SIZE = 100;
+	// NFR-14 limits on the requested page size; values outside them are rejected with 400, never clamped.
+	public static final int MIN_SIZE = 1;
+	public static final int MAX_SIZE = 100;
 
-    public int pageOrDefault(Integer page) {
-        return page == null ? defaultPage : page;
-    }
+	public int pageOrDefault(Integer page) {
+		return page == null ? defaultPage : page;
+	}
 
-    public int sizeOrDefault(Integer size) {
-        return size == null ? defaultSize : size;
-    }
+	public int sizeOrDefault(Integer size) {
+		return size == null ? defaultSize : size;
+	}
 }

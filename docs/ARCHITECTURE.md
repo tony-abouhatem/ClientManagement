@@ -28,11 +28,17 @@ flowchart LR
 ```
 
 ## Package layout (`com.datum.clientmanagement`)
-- `customer`: entity, repository, service, controller, DTOs, CPF validator/normalizer, and the Score integration: `ScoreClient` (RestClient + Resilience4j) and the `GET /customers/{id}/score` endpoint.
-- `messaging`: AMQP topology config, `CustomerCreated` publisher, outbox entity and relay, status-change listener, `processed_events`.
+Packages are split by technical role, not by feature.
+- `controller`: `CustomerController` (REST endpoints, including `GET /customers/{id}/score`).
+- `service`: `CustomerService`, `StatusChangeProcessor` (applies a status-change message), and `ScoreClient`, the external Score integration (RestClient + Resilience4j).
+- `repository`: `CustomerRepository` and `CustomerSpecifications` (list filters), `OutboxEventRepository`, `ProcessedEventStore` (`processed_events`).
+- `model`: JPA entities `Customer` and `OutboxEventEntity`, and the enums `CustomerStatus`, `EventType`, `PublishFailureReason`.
+- `dto`: request/response records (`CustomerRequest`, shared by POST and PUT; `CustomerResponse`, `CustomerFilter`, `ScoreResponse`), the external Score body `ExternalScore`, the incoming `StatusChangeRequest`, the outgoing `CustomerCreatedEvent` (Spring application event raised on create, and the CUSTOMER_CREATED message body), and `FieldValidationError` (one entry of a validation `errors[]`).
+- `messaging`: AMQP in/out: `CustomerCreated` publisher with publisher confirms, outbox relay, status-change listener and message parser.
+- `validation`: the `@Cpf` constraint and the `OnCreate`/`OnUpdate` groups that select which `CustomerRequest` fields are required on POST and on PUT. `util`: `CustomerFormats` (CPF normalize/mask, searchable name, name and email length limits), `CustomerSort`.
+- `exception`: `@RestControllerAdvice` (validation `errors[]`, generic 500) and the app's own exceptions. Business errors are thrown as `ResponseStatusException`.
+- `config`: typed `@ConfigurationProperties` (Score, messaging, outbox, pagination) and the AMQP topology, listener retry and outbox scheduling configuration.
 - `security`: `SecurityFilterChain` and the Keycloak role → `ROLE_*` converter.
-- `common.error`: `@RestControllerAdvice` (validation `errors[]`, generic 500). Business errors are thrown as `ResponseStatusException`.
-- `config`: typed `@ConfigurationProperties` (Score, messaging, outbox, pagination).
 
 ## Data model
 Source of truth: `src/main/resources/db/migration` (Flyway). Hibernate runs with `ddl-auto=validate`.
