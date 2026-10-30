@@ -3,8 +3,9 @@
  *
  * Interfaces under test (do not exist yet):
  *   - POST /customers, PUT /customers/{id}, DELETE /customers/{id}, GET /customers/{id}
- *   - DTOs (package com.datum.clientmanagement.customer): CustomerRequests.Create(name, cpf, email, status?),
- *     CustomerRequests.Update(name, email, status, version, cpf?) — version REQUIRED (optimistic lock),
+ *   - DTOs (package com.datum.clientmanagement.dto): CustomerRequest(name, cpf, email, status, version), validated
+ *     with group OnCreate on POST (cpf required, status optional, version ignored) and OnUpdate on PUT
+ *     (status required, version REQUIRED for the optimistic lock, cpf optional),
  *     CustomerResponse(id, name, cpf, email, status, createdAt, updatedAt, version)
  *   - com.datum.clientmanagement.common.error @RestControllerAdvice -> ProblemDetail
  *     {title,status,detail,instance[,errors[{field,message}]]}, Content-Type application/problem+json
@@ -191,6 +192,20 @@ class CustomerCrudFunctionalTest {
 
 		assertThat(errorFields(problem)).contains("cpf");
 		assertThat(errorMessage(problem, "cpf")).isNotBlank();
+		assertThat(customerCount()).isZero();
+	}
+
+	// AC-3 (ticket 03) / NFR-13
+	// Given an ADMIN
+	// When POST /customers {"name":"Ana Souza","email":"ana@example.com"} (no cpf)
+	// Then the response is 400 problem+json with exactly 1 errors[] entry, field "cpf"
+	//  And no customer row is written
+	@Test
+	@DisplayName("should return 400 with errors[].field=cpf when POST omits the CPF")
+	void postWithoutCpf_returns400() throws Exception {
+		JsonNode problem = expectProblem(createRequest("{\"name\":\"Ana Souza\",\"email\":\"ana@example.com\"}"), 400);
+
+		assertThat(errorFields(problem)).containsExactly("cpf");
 		assertThat(customerCount()).isZero();
 	}
 
@@ -552,6 +567,24 @@ class CustomerCrudFunctionalTest {
 		JsonNode current = getCustomer(id);
 		assertThat(current.path("name").asString()).isEqualTo("Name A");
 		assertThat(current.path("version").asLong()).isEqualTo(1);
+	}
+
+	// AC-4 (ticket 03) / NFR-13
+	// Given customer X at version 0
+	// When PUT /customers/X {"name":"Ana Souza","email":"ana@example.com","version":0} (no "status")
+	// Then the response is 400 problem+json with exactly 1 errors[] entry, field "status"
+	//  And the stored customer is unchanged
+	@Test
+	@DisplayName("should return 400 with errors[].field=status when PUT omits the status")
+	void putWithoutStatus_returns400() throws Exception {
+		JsonNode created = createCustomer(ANA_BODY);
+		long id = created.path("id").asLong();
+
+		JsonNode problem = expectProblem(
+				updateRequest(id, "{\"name\":\"Ana Souza\",\"email\":\"ana@example.com\",\"version\":0}"), 400);
+
+		assertThat(errorFields(problem)).containsExactly("status");
+		assertThat(getCustomer(id)).isEqualTo(created);
 	}
 
 	// AC-11 (ticket 03) / NFR-12

@@ -1,8 +1,8 @@
 package com.datum.clientmanagement.repository;
 
 import com.datum.clientmanagement.dto.CustomerFilter;
-import com.datum.clientmanagement.model.entity.Customer;
-import com.datum.clientmanagement.model.enums.CustomerStatus;
+import com.datum.clientmanagement.model.Customer;
+import com.datum.clientmanagement.model.CustomerStatus;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 

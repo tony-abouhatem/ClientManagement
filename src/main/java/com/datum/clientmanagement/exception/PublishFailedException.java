@@ -1,6 +1,6 @@
 package com.datum.clientmanagement.exception;
 
-import com.datum.clientmanagement.model.enums.PublishFailureReason;
+import com.datum.clientmanagement.model.PublishFailureReason;
 
 /** A publish that RabbitMQ did not confirm, with the {@link PublishFailureReason} it failed for. */
 public class PublishFailedException extends RuntimeException {

@@ -1,9 +1,9 @@
 package com.datum.clientmanagement.messaging;
 
-import com.datum.clientmanagement.event.CustomerCreatedEvent;
+import com.datum.clientmanagement.dto.CustomerCreatedEvent;
 import com.datum.clientmanagement.exception.PublishFailedException;
-import com.datum.clientmanagement.model.entity.OutboxEventEntity;
-import com.datum.clientmanagement.model.enums.PublishFailureReason;
+import com.datum.clientmanagement.model.OutboxEventEntity;
+import com.datum.clientmanagement.model.PublishFailureReason;
 import com.datum.clientmanagement.repository.OutboxEventRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -17,12 +17,12 @@ import tools.jackson.databind.json.JsonMapper;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -44,14 +44,15 @@ class CustomerCreatedPublisherTest {
 
 	@Test
 	void onCustomerCreated_publishesTheCustomerCreatedPayload() {
-		publisher.onCustomerCreated(new CustomerCreatedEvent(CUSTOMER_ID, CREATED_AT));
+		CustomerCreatedEvent event = new CustomerCreatedEvent(CUSTOMER_ID, CREATED_AT);
 
-		ArgumentCaptor<UUID> eventId = ArgumentCaptor.forClass(UUID.class);
+		publisher.onCustomerCreated(event);
+
 		ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
-		verify(confirmedPublisher).publish(eventId.capture(), payload.capture());
+		verify(confirmedPublisher).publish(eq(event.eventId()), payload.capture());
 		JsonNode body = JSON.readTree(payload.getValue());
 		assertThat(body.propertyNames()).containsExactlyInAnyOrder("eventId", "eventType", "customerId", "createdAt");
-		assertThat(body.path("eventId").asString()).isEqualTo(eventId.getValue().toString());
+		assertThat(body.path("eventId").asString()).isEqualTo(event.eventId().toString());
 		assertThat(body.path("eventType").asString()).isEqualTo("CUSTOMER_CREATED");
 		assertThat(body.path("customerId").asLong()).isEqualTo(CUSTOMER_ID);
 		assertThat(body.path("createdAt").asString()).isEqualTo("2026-10-28T10:15:30.123456Z");
@@ -60,12 +61,13 @@ class CustomerCreatedPublisherTest {
 
 	@Test
 	void onCustomerCreated_payloadIsExactlyTheDocumentedJsonInFieldOrder() {
-		publisher.onCustomerCreated(new CustomerCreatedEvent(CUSTOMER_ID, CREATED_AT));
+		CustomerCreatedEvent event = new CustomerCreatedEvent(CUSTOMER_ID, CREATED_AT);
 
-		ArgumentCaptor<UUID> eventId = ArgumentCaptor.forClass(UUID.class);
+		publisher.onCustomerCreated(event);
+
 		ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
-		verify(confirmedPublisher).publish(eventId.capture(), payload.capture());
-		assertThat(payload.getValue()).isEqualTo("{\"eventId\":\"" + eventId.getValue()
+		verify(confirmedPublisher).publish(eq(event.eventId()), payload.capture());
+		assertThat(payload.getValue()).isEqualTo("{\"eventId\":\"" + event.eventId()
 				+ "\",\"eventType\":\"CUSTOMER_CREATED\",\"customerId\":42,"
 				+ "\"createdAt\":\"2026-10-28T10:15:30.123456Z\"}");
 	}
@@ -76,15 +78,16 @@ class CustomerCreatedPublisherTest {
 		doThrow(new PublishFailedException(PublishFailureReason.BROKER_DOWN, "Connection refused"))
 				.when(confirmedPublisher).publish(any(), anyString());
 
-		publisher.onCustomerCreated(new CustomerCreatedEvent(CUSTOMER_ID, CREATED_AT));
+		CustomerCreatedEvent created = new CustomerCreatedEvent(CUSTOMER_ID, CREATED_AT);
 
-		ArgumentCaptor<UUID> publishedId = ArgumentCaptor.forClass(UUID.class);
+		publisher.onCustomerCreated(created);
+
 		ArgumentCaptor<String> publishedPayload = ArgumentCaptor.forClass(String.class);
-		verify(confirmedPublisher).publish(publishedId.capture(), publishedPayload.capture());
+		verify(confirmedPublisher).publish(eq(created.eventId()), publishedPayload.capture());
 		ArgumentCaptor<OutboxEventEntity> stored = ArgumentCaptor.forClass(OutboxEventEntity.class);
 		verify(outbox).save(stored.capture());
 		OutboxEventEntity event = stored.getValue();
-		assertThat(event.getEventId()).isEqualTo(publishedId.getValue());
+		assertThat(event.getEventId()).isEqualTo(created.eventId());
 		assertThat(event.getPayload()).isEqualTo(publishedPayload.getValue());
 		assertThat(event.getAttempts()).as("attempts counts relay failures only").isZero();
 		assertThat(event.getLastError()).isEqualTo("Connection refused");

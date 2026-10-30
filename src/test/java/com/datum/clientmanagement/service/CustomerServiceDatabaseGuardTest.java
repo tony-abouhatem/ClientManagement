@@ -1,8 +1,8 @@
 package com.datum.clientmanagement.service;
 
 import com.datum.clientmanagement.TestcontainersConfiguration;
-import com.datum.clientmanagement.dto.CustomerRequests;
-import com.datum.clientmanagement.model.entity.Customer;
+import com.datum.clientmanagement.dto.CustomerRequest;
+import com.datum.clientmanagement.model.Customer;
 import com.datum.clientmanagement.repository.CustomerRepository;
 import jakarta.persistence.EntityManager;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
@@ -60,10 +60,10 @@ class CustomerServiceDatabaseGuardTest {
 	@Test
 	void create_duplicateCpfCaughtOnlyByDatabase_throwsDuplicateCpf() {
 		doReturn(false).when(customerRepository).existsByCpf(anyString());
-		customerService.create(new CustomerRequests.Create("Ana Souza", CPF, "ana@example.com", null));
+		customerService.create(new CustomerRequest("Ana Souza", CPF, "ana@example.com", null, null));
 
 		assertResponseStatus(() -> customerService.create(
-				new CustomerRequests.Create("Outra Pessoa", CPF, "outra@example.com", null)),
+				new CustomerRequest("Outra Pessoa", CPF, "outra@example.com", null, null)),
 				CustomerService.DUPLICATE_CPF_MESSAGE);
 		assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM customers WHERE cpf = ?", Integer.class, CPF))
 				.isEqualTo(1);
@@ -71,7 +71,7 @@ class CustomerServiceDatabaseGuardTest {
 
 	@Test
 	void update_rowChangedAfterVersionCheck_throwsVersionConflict() {
-		long id = customerService.create(new CustomerRequests.Create("Ana Souza", CPF, "ana@example.com", null)).getId();
+		long id = customerService.create(new CustomerRequest("Ana Souza", CPF, "ana@example.com", null, null)).getId();
 		// Another writer bumps the row right after it was loaded, so only the version in the UPDATE's WHERE catches it.
 		doAnswer(invocation -> {
 			Optional<Customer> loaded = Optional.ofNullable(entityManager.find(Customer.class, id));
@@ -80,7 +80,7 @@ class CustomerServiceDatabaseGuardTest {
 		}).when(customerRepository).findById(id);
 
 		assertResponseStatus(() -> customerService.update(id,
-				new CustomerRequests.Update("Name A", "ana@example.com", "ACTIVE", 0L, null)),
+				new CustomerRequest("Name A", null, "ana@example.com", "ACTIVE", 0L)),
 				CustomerService.VERSION_CONFLICT_MESSAGE.formatted(id));
 		assertThat(jdbcTemplate.queryForObject("SELECT name FROM customers WHERE id = ?", String.class, id))
 				.isNotEqualTo("Name A");

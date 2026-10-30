@@ -1,6 +1,6 @@
 package com.datum.clientmanagement.dto;
 
-import com.datum.clientmanagement.model.enums.CustomerStatus;
+import com.datum.clientmanagement.model.CustomerStatus;
 import com.datum.clientmanagement.util.CustomerFormats;
 
 /**

@@ -1,11 +1,11 @@
 package com.datum.clientmanagement.service;
 
+import com.datum.clientmanagement.dto.CustomerCreatedEvent;
 import com.datum.clientmanagement.dto.CustomerFilter;
-import com.datum.clientmanagement.dto.CustomerRequests;
+import com.datum.clientmanagement.dto.CustomerRequest;
 import com.datum.clientmanagement.dto.ScoreResponse;
-import com.datum.clientmanagement.event.CustomerCreatedEvent;
-import com.datum.clientmanagement.model.entity.Customer;
-import com.datum.clientmanagement.model.enums.CustomerStatus;
+import com.datum.clientmanagement.model.Customer;
+import com.datum.clientmanagement.model.CustomerStatus;
 import com.datum.clientmanagement.repository.CustomerRepository;
 import com.datum.clientmanagement.repository.CustomerSpecifications;
 import com.datum.clientmanagement.util.CustomerFormats;
@@ -60,7 +60,7 @@ public class CustomerService {
 	}
 
 	@Transactional
-	public Customer create(CustomerRequests.Create request) {
+	public Customer create(CustomerRequest request) {
 		if (repository.existsByCpf(request.cpf())) {
 			logDuplicateCpf(request.cpf());
 			throw new ResponseStatusException(HttpStatus.CONFLICT, DUPLICATE_CPF_MESSAGE);
@@ -103,13 +103,13 @@ public class CustomerService {
 	}
 
 	@Transactional
-	public Customer update(long id, CustomerRequests.Update request) {
+	public Customer update(long id, CustomerRequest request) {
 		Customer customer = findById(id);
 		if (!customer.getVersion().equals(request.version()))
 			throw new ResponseStatusException(HttpStatus.CONFLICT, VERSION_CONFLICT_MESSAGE.formatted(id));
 		if (request.cpf() != null && !request.cpf().equals(customer.getCpf()))
 			throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, CPF_CHANGE_MESSAGE);
-		customer.update(request.name(), request.email(), request.customerStatus(), now());
+		customer.update(request.name(), request.email(), request.statusOrDefault(), now());
 		try {
 			// Flush now so a concurrent update that already bumped the version surfaces here, not at commit.
 			repository.flush();

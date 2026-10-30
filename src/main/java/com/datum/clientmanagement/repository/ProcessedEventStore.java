@@ -1,6 +1,6 @@
 package com.datum.clientmanagement.repository;
 
-import com.datum.clientmanagement.model.enums.EventType;
+import com.datum.clientmanagement.model.EventType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 

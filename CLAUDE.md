@@ -24,7 +24,7 @@ Read first: `docs/PRODUCT.md` (scope, rules, NFRs), `docs/ARCHITECTURE.md` (desi
 | Full stack | `docker compose up --build` |
 
 ## Folder conventions
-- `src/main/java/com/datum/clientmanagement/{controller,service,repository,model/entity,model/enums,dto,event,messaging,validation,util,exception,config,security}`: packages by technical role, not by feature (see the Package layout section of ARCHITECTURE.md).
+- `src/main/java/com/datum/clientmanagement/{controller,service,repository,model,dto,messaging,validation,util,exception,config,security}`: packages by technical role, not by feature (see the Package layout section of ARCHITECTURE.md).
 - `src/main/resources/application.yaml`: defaults with `${ENV:default}` placeholders.
 - `src/main/resources/db/migration/V<n>__<desc>.sql`: Flyway, the only place schema changes happen.
 - `docker/keycloak/` (realm JSON), `docker/wiremock/mappings/` and `__files/`: compose assets.

@@ -1,4 +1,4 @@
-package com.datum.clientmanagement.model.enums;
+package com.datum.clientmanagement.model;
 
 public enum CustomerStatus {
 	ACTIVE,

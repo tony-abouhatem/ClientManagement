@@ -1,12 +1,12 @@
 package com.datum.clientmanagement.service;
 
+import com.datum.clientmanagement.dto.CustomerCreatedEvent;
 import com.datum.clientmanagement.dto.CustomerFilter;
-import com.datum.clientmanagement.dto.CustomerRequests;
+import com.datum.clientmanagement.dto.CustomerRequest;
 import com.datum.clientmanagement.dto.ExternalScore;
 import com.datum.clientmanagement.dto.ScoreResponse;
-import com.datum.clientmanagement.event.CustomerCreatedEvent;
-import com.datum.clientmanagement.model.entity.Customer;
-import com.datum.clientmanagement.model.enums.CustomerStatus;
+import com.datum.clientmanagement.model.Customer;
+import com.datum.clientmanagement.model.CustomerStatus;
 import com.datum.clientmanagement.repository.CustomerRepository;
 import com.datum.clientmanagement.repository.CustomerSpecifications;
 import com.datum.clientmanagement.util.CustomerFormats;
@@ -65,8 +65,8 @@ class CustomerServiceTest {
 	void create_newCpf_savesNormalizedCustomerWithDefaults() {
 		savesWithGeneratedId();
 
-		Customer created = service.create(new CustomerRequests.Create("  João da Silva ", "529.982.247-25",
-				"joao@example.com", null));
+		Customer created = service.create(new CustomerRequest("  João da Silva ", "529.982.247-25",
+				"joao@example.com", null, null));
 
 		ArgumentCaptor<Customer> saved = ArgumentCaptor.forClass(Customer.class);
 		verify(repository).saveAndFlush(saved.capture());
@@ -86,7 +86,10 @@ class CustomerServiceTest {
 
 		service.create(createRequest());
 
-		verify(events).publishEvent(new CustomerCreatedEvent(CUSTOMER_ID, NOW_TRUNCATED));
+		ArgumentCaptor<CustomerCreatedEvent> raised = ArgumentCaptor.forClass(CustomerCreatedEvent.class);
+		verify(events).publishEvent(raised.capture());
+		assertThat(raised.getValue().customerId()).isEqualTo(CUSTOMER_ID);
+		assertThat(raised.getValue().createdAt()).isEqualTo(NOW_TRUNCATED);
 	}
 
 	// Like JPA's identity generation: the saved instance is the same object, now with an id.
@@ -165,7 +168,7 @@ class CustomerServiceTest {
 		Customer stored = storedCustomer(0L);
 
 		Customer updated = service.update(CUSTOMER_ID,
-				new CustomerRequests.Update("Élise Março", "elise@example.com", "INACTIVE", 0L, "529.982.247-25"));
+				new CustomerRequest("Élise Março", "529.982.247-25", "elise@example.com", "INACTIVE", 0L));
 
 		assertThat(updated.getName()).isEqualTo("Élise Março");
 		assertThat(updated.getNameNormalized()).isEqualTo("elise marco");
@@ -294,12 +297,12 @@ class CustomerServiceTest {
 		return customer;
 	}
 
-	private static CustomerRequests.Create createRequest() {
-		return new CustomerRequests.Create("Ana Souza", CPF, "ana@example.com", null);
+	private static CustomerRequest createRequest() {
+		return new CustomerRequest("Ana Souza", CPF, "ana@example.com", null, null);
 	}
 
-	private static CustomerRequests.Update updateRequest(String cpf) {
-		return new CustomerRequests.Update("Changed", "changed@example.com", "INACTIVE", 0L, cpf);
+	private static CustomerRequest updateRequest(String cpf) {
+		return new CustomerRequest("Changed", cpf, "changed@example.com", "INACTIVE", 0L);
 	}
 
 	private static DataIntegrityViolationException integrityViolation(String constraintName) {

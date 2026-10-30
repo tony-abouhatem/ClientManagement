@@ -20,10 +20,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static com.datum.clientmanagement.model.enums.PublishFailureReason.BROKER_DOWN;
-import static com.datum.clientmanagement.model.enums.PublishFailureReason.CONFIRM_TIMEOUT;
-import static com.datum.clientmanagement.model.enums.PublishFailureReason.NACK;
-import static com.datum.clientmanagement.model.enums.PublishFailureReason.UNROUTABLE;
+import static com.datum.clientmanagement.model.PublishFailureReason.BROKER_DOWN;
+import static com.datum.clientmanagement.model.PublishFailureReason.CONFIRM_TIMEOUT;
+import static com.datum.clientmanagement.model.PublishFailureReason.NACK;
+import static com.datum.clientmanagement.model.PublishFailureReason.UNROUTABLE;
 
 /**
  * Publishes a CUSTOMER_CREATED JSON payload to {@code customer.events} and blocks until RabbitMQ confirms it

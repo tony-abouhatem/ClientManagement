@@ -1,9 +1,9 @@
 package com.datum.clientmanagement.messaging;
 
-import com.datum.clientmanagement.event.CustomerCreatedEvent;
+import com.datum.clientmanagement.dto.CustomerCreatedEvent;
 import com.datum.clientmanagement.exception.PublishFailedException;
-import com.datum.clientmanagement.model.entity.OutboxEventEntity;
-import com.datum.clientmanagement.model.enums.EventType;
+import com.datum.clientmanagement.model.OutboxEventEntity;
+import com.datum.clientmanagement.model.EventType;
 import com.datum.clientmanagement.repository.OutboxEventRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,8 +18,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Clock;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -51,8 +49,8 @@ class CustomerCreatedPublisher {
 
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	void onCustomerCreated(CustomerCreatedEvent event) {
-		UUID eventId = UUID.randomUUID();
-		String payload = jsonMapper.writeValueAsString(payloadOf(eventId, event));
+		UUID eventId = event.eventId();
+		String payload = jsonMapper.writeValueAsString(event);
 		try {
 			publisher.publish(eventId, payload);
 			log.info("Published CUSTOMER_CREATED event {} for customer {}", eventId, event.customerId());
@@ -73,18 +71,5 @@ class CustomerCreatedPublisher {
 			log.error("CUSTOMER_CREATED event {} for customer {} could not be stored in the outbox and is lost",
 					eventId, customerId, exception);
 		}
-	}
-
-	/**
-	 * The message body (AC-1), in this field order. Values stay typed so the JsonMapper writes eventId as a UUID
-	 * string and createdAt as an ISO-8601 UTC string. Consumers dedupe by eventId.
-	 */
-	private Map<String, Object> payloadOf(UUID eventId, CustomerCreatedEvent event) {
-		Map<String, Object> payload = new LinkedHashMap<>();
-		payload.put("eventId", eventId);
-		payload.put("eventType", EventType.CUSTOMER_CREATED);
-		payload.put("customerId", event.customerId());
-		payload.put("createdAt", event.createdAt());
-		return payload;
 	}
 }

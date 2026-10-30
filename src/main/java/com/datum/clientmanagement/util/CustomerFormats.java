@@ -13,6 +13,10 @@ import java.util.regex.Pattern;
 @Component
 public class CustomerFormats {
 
+	/** Field limits shared by the request DTOs and the Customer entity; they match the column sizes in V1__init.sql. */
+	public static final int NAME_MAX_LENGTH = 150;
+	public static final int EMAIL_MAX_LENGTH = 254;
+
 	// Static: read by the static normalizeCpf and searchableName below.
 	private static final Pattern NON_DIGITS = Pattern.compile("[^0-9]");
 	private static final Pattern COMBINING_MARKS = Pattern.compile("\\p{M}+");
@@ -23,7 +27,7 @@ public class CustomerFormats {
 	 * Reduces any CPF input ({@code 529.982.247-25}, {@code " 529 982 247/25 "}) to its digits by removing every
 	 * character that is not 0-9. Validation then checks the length and the check digits. {@code null} stays null.
 	 */
-	// Static: called from the request records' compact constructors (CustomerRequests), which can't be injected.
+	// Static: called from the request record's compact constructor (CustomerRequest), which can't be injected.
 	public static String normalizeCpf(String cpf) {
 		if (cpf == null)
 			return null;

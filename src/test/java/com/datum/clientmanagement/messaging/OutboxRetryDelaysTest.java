@@ -1,7 +1,7 @@
 package com.datum.clientmanagement.messaging;
 
 import com.datum.clientmanagement.exception.PublishFailedException;
-import com.datum.clientmanagement.model.enums.PublishFailureReason;
+import com.datum.clientmanagement.model.PublishFailureReason;
 import io.github.resilience4j.core.IntervalBiFunction;
 import io.github.resilience4j.core.functions.Either;
 import io.github.resilience4j.retry.RetryRegistry;

@@ -2,9 +2,9 @@ package com.datum.clientmanagement.messaging;
 
 import com.datum.clientmanagement.config.OutboxProperties;
 import com.datum.clientmanagement.exception.PublishFailedException;
-import com.datum.clientmanagement.model.entity.OutboxEventEntity;
-import com.datum.clientmanagement.model.enums.EventType;
-import com.datum.clientmanagement.model.enums.PublishFailureReason;
+import com.datum.clientmanagement.model.OutboxEventEntity;
+import com.datum.clientmanagement.model.EventType;
+import com.datum.clientmanagement.model.PublishFailureReason;
 import com.datum.clientmanagement.repository.OutboxEventRepository;
 import io.github.resilience4j.core.IntervalFunction;
 import io.github.resilience4j.retry.RetryConfig;

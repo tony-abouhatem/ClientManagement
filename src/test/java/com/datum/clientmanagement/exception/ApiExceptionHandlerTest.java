@@ -1,5 +1,6 @@
 package com.datum.clientmanagement.exception;
 
+import com.datum.clientmanagement.dto.FieldValidationError;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.context.support.DefaultMessageSourceResolvable;

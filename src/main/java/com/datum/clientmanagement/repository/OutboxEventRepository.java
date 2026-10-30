@@ -1,6 +1,6 @@
 package com.datum.clientmanagement.repository;
 
-import com.datum.clientmanagement.model.entity.OutboxEventEntity;
+import com.datum.clientmanagement.model.OutboxEventEntity;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.Limit;

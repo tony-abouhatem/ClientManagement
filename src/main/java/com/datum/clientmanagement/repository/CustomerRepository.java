@@ -1,6 +1,6 @@
 package com.datum.clientmanagement.repository;
 
-import com.datum.clientmanagement.model.entity.Customer;
+import com.datum.clientmanagement.model.Customer;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;

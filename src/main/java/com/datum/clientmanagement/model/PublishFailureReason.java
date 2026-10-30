@@ -1,4 +1,4 @@
-package com.datum.clientmanagement.model.enums;
+package com.datum.clientmanagement.model;
 
 /** Why RabbitMQ did not confirm a publish; stored in {@code outbox_events.last_error_type} (ticket 06 AC-6). */
 public enum PublishFailureReason {

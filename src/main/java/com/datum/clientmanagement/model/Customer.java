@@ -1,8 +1,6 @@
-package com.datum.clientmanagement.model.entity;
+package com.datum.clientmanagement.model;
 
-import com.datum.clientmanagement.model.enums.CustomerStatus;
 import com.datum.clientmanagement.util.CustomerFormats;
-import com.datum.clientmanagement.util.CustomerLimits;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -25,10 +23,10 @@ public class Customer {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@Column(name = "name", nullable = false, length = CustomerLimits.NAME_MAX_LENGTH)
+	@Column(name = "name", nullable = false, length = CustomerFormats.NAME_MAX_LENGTH)
 	private String name;
 
-	@Column(name = "name_normalized", nullable = false, length = CustomerLimits.NAME_MAX_LENGTH)
+	@Column(name = "name_normalized", nullable = false, length = CustomerFormats.NAME_MAX_LENGTH)
 	private String nameNormalized;
 
 	// The column is CHAR(11); without the explicit JDBC type, schema validation expects VARCHAR.
@@ -36,7 +34,7 @@ public class Customer {
 	@Column(name = "cpf", nullable = false, length = 11, updatable = false)
 	private String cpf;
 
-	@Column(name = "email", nullable = false, length = CustomerLimits.EMAIL_MAX_LENGTH)
+	@Column(name = "email", nullable = false, length = CustomerFormats.EMAIL_MAX_LENGTH)
 	private String email;
 
 	@Enumerated(EnumType.STRING)

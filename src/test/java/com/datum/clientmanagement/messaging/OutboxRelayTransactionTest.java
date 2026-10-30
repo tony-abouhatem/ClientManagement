@@ -2,7 +2,7 @@ package com.datum.clientmanagement.messaging;
 
 import com.datum.clientmanagement.TestcontainersConfiguration;
 import com.datum.clientmanagement.config.MessagingTopology;
-import com.datum.clientmanagement.model.entity.OutboxEventEntity;
+import com.datum.clientmanagement.model.OutboxEventEntity;
 import com.datum.clientmanagement.repository.OutboxEventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

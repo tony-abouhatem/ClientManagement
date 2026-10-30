@@ -2,7 +2,7 @@ package com.datum.clientmanagement.service;
 
 import com.datum.clientmanagement.dto.StatusChangeRequest;
 import com.datum.clientmanagement.exception.InvalidStatusChangeException;
-import com.datum.clientmanagement.model.enums.EventType;
+import com.datum.clientmanagement.model.EventType;
 import com.datum.clientmanagement.repository.ProcessedEventStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

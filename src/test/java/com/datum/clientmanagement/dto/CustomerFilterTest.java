@@ -1,6 +1,6 @@
 package com.datum.clientmanagement.dto;
 
-import com.datum.clientmanagement.model.enums.CustomerStatus;
+import com.datum.clientmanagement.model.CustomerStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;

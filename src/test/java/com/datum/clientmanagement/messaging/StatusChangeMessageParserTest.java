@@ -2,7 +2,7 @@ package com.datum.clientmanagement.messaging;
 
 import com.datum.clientmanagement.dto.StatusChangeRequest;
 import com.datum.clientmanagement.exception.InvalidStatusChangeException;
-import com.datum.clientmanagement.model.enums.CustomerStatus;
+import com.datum.clientmanagement.model.CustomerStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;

@@ -1,6 +1,6 @@
 package com.datum.clientmanagement.dto;
 
-import com.datum.clientmanagement.model.entity.Customer;
+import com.datum.clientmanagement.model.Customer;
 
 /** Response of {@code GET /customers/{id}/score}. */
 public record ScoreResponse(

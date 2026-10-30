@@ -2,16 +2,17 @@ package com.datum.clientmanagement.controller;
 
 import com.datum.clientmanagement.config.PaginationProperties;
 import com.datum.clientmanagement.dto.CustomerFilter;
-import com.datum.clientmanagement.dto.CustomerRequests;
+import com.datum.clientmanagement.dto.CustomerRequest;
 import com.datum.clientmanagement.dto.CustomerResponse;
 import com.datum.clientmanagement.dto.ScoreResponse;
-import com.datum.clientmanagement.model.enums.CustomerStatus;
+import com.datum.clientmanagement.model.CustomerStatus;
 import com.datum.clientmanagement.service.CustomerService;
 import com.datum.clientmanagement.util.CustomerSort;
+import com.datum.clientmanagement.validation.OnCreate;
+import com.datum.clientmanagement.validation.OnUpdate;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -22,6 +23,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -66,7 +68,7 @@ class CustomerController {
 	@ApiResponse(responseCode = "400", description = INVALID_FIELDS)
 	@ApiResponse(responseCode = "403", description = FORBIDDEN)
 	@ApiResponse(responseCode = "409", description = "A customer with this CPF already exists")
-	ResponseEntity<CustomerResponse> create(@Valid @RequestBody CustomerRequests.Create request) {
+	ResponseEntity<CustomerResponse> create(@Validated(OnCreate.class) @RequestBody CustomerRequest request) {
 		CustomerResponse created = CustomerResponse.from(customerService.create(request));
 		return ResponseEntity.created(URI.create(BASE_PATH + "/" + created.id())).body(created);
 	}
@@ -133,7 +135,7 @@ class CustomerController {
 	@ApiResponse(responseCode = "404", description = CUSTOMER_NOT_FOUND)
 	@ApiResponse(responseCode = "409", description = "The version does not match the stored one")
 	@ApiResponse(responseCode = "422", description = "The request tries to change the CPF")
-	CustomerResponse update(@PathVariable long id, @Valid @RequestBody CustomerRequests.Update request) {
+	CustomerResponse update(@PathVariable long id, @Validated(OnUpdate.class) @RequestBody CustomerRequest request) {
 		return CustomerResponse.from(customerService.update(id, request));
 	}
 

@@ -1,9 +1,7 @@
-package com.datum.clientmanagement.model.entity;
+package com.datum.clientmanagement.model;
 
 import com.datum.clientmanagement.exception.PublishFailedException;
 import com.datum.clientmanagement.messaging.OutboxRelay;
-import com.datum.clientmanagement.model.enums.EventType;
-import com.datum.clientmanagement.model.enums.PublishFailureReason;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

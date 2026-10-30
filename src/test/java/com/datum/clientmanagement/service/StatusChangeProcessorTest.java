@@ -2,8 +2,8 @@ package com.datum.clientmanagement.service;
 
 import com.datum.clientmanagement.dto.StatusChangeRequest;
 import com.datum.clientmanagement.exception.InvalidStatusChangeException;
-import com.datum.clientmanagement.model.enums.CustomerStatus;
-import com.datum.clientmanagement.model.enums.EventType;
+import com.datum.clientmanagement.model.CustomerStatus;
+import com.datum.clientmanagement.model.EventType;
 import com.datum.clientmanagement.repository.ProcessedEventStore;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;

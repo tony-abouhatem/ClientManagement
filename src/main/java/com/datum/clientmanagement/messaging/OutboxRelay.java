@@ -2,7 +2,7 @@ package com.datum.clientmanagement.messaging;
 
 import com.datum.clientmanagement.config.OutboxProperties;
 import com.datum.clientmanagement.exception.PublishFailedException;
-import com.datum.clientmanagement.model.entity.OutboxEventEntity;
+import com.datum.clientmanagement.model.OutboxEventEntity;
 import com.datum.clientmanagement.repository.OutboxEventRepository;
 import io.github.resilience4j.core.IntervalBiFunction;
 import io.github.resilience4j.core.functions.Either;
