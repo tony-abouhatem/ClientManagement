@@ -17,16 +17,16 @@ import java.time.Duration;
 @EnableScheduling
 class OutboxRelayScheduling implements SchedulingConfigurer {
 
-    private final OutboxRelay relay;
-    private final Duration interval;
+	private final OutboxRelay relay;
+	private final Duration interval;
 
-    OutboxRelayScheduling(OutboxRelay relay, OutboxProperties properties) {
-        this.relay = relay;
-        this.interval = properties.relayInterval();
-    }
+	OutboxRelayScheduling(OutboxRelay relay, OutboxProperties properties) {
+		this.relay = relay;
+		this.interval = properties.relayInterval();
+	}
 
-    @Override
-    public void configureTasks(ScheduledTaskRegistrar registrar) {
-        registrar.addFixedDelayTask(new FixedDelayTask(relay::relayPending, interval, interval));
-    }
+	@Override
+	public void configureTasks(ScheduledTaskRegistrar registrar) {
+		registrar.addFixedDelayTask(new FixedDelayTask(relay::relayPending, interval, interval));
+	}
 }

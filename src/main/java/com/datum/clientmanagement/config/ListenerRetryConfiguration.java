@@ -17,10 +17,10 @@ import java.util.List;
 @Configuration(proxyBeanMethods = false)
 public class ListenerRetryConfiguration {
 
-    // Spring Boot has no property for retry excludes. The retry policy matches them against the whole cause chain,
-    // so the container's ListenerExecutionFailedException wrapper does not hide the rejection.
-    @Bean
-    RabbitListenerRetrySettingsCustomizer rejectedMessagesAreNotRetried() {
-        return settings -> settings.setExceptionExcludes(List.of(AmqpRejectAndDontRequeueException.class));
-    }
+	// Spring Boot has no property for retry excludes. The retry policy matches them against the whole cause chain,
+	// so the container's ListenerExecutionFailedException wrapper does not hide the rejection.
+	@Bean
+	RabbitListenerRetrySettingsCustomizer rejectedMessagesAreNotRetried() {
+		return settings -> settings.setExceptionExcludes(List.of(AmqpRejectAndDontRequeueException.class));
+	}
 }

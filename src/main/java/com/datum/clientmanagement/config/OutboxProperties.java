@@ -13,5 +13,8 @@ import java.time.Duration;
  */
 @Validated
 @ConfigurationProperties("app.outbox")
-public record OutboxProperties(@NotNull Duration relayInterval, @Positive int batchSize) {
+public record OutboxProperties(
+	@NotNull Duration relayInterval,
+	@Positive int batchSize
+) {
 }

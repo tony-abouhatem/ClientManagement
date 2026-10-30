@@ -24,69 +24,69 @@ import static org.mockito.Mockito.when;
 
 class StatusChangeProcessorTest {
 
-    private static final UUID EVENT_ID = UUID.fromString("7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d");
-    private static final long CUSTOMER_ID = 123L;
-    private static final StatusChangeRequest REQUEST =
-            new StatusChangeRequest(EVENT_ID, CUSTOMER_ID, CustomerStatus.INACTIVE);
+	private static final UUID EVENT_ID = UUID.fromString("7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d");
+	private static final long CUSTOMER_ID = 123L;
+	private static final StatusChangeRequest REQUEST =
+			new StatusChangeRequest(EVENT_ID, CUSTOMER_ID, CustomerStatus.INACTIVE);
 
-    private final ProcessedEventStore processedEvents = mock(ProcessedEventStore.class);
-    private final CustomerService customerService = mock(CustomerService.class);
-    private final StatusChangeProcessor processor = new StatusChangeProcessor(processedEvents, customerService);
+	private final ProcessedEventStore processedEvents = mock(ProcessedEventStore.class);
+	private final CustomerService customerService = mock(CustomerService.class);
+	private final StatusChangeProcessor processor = new StatusChangeProcessor(processedEvents, customerService);
 
-    @Test
-    void process_newEvent_recordsItAndChangesTheStatus() {
-        when(processedEvents.recordIfNew(EVENT_ID, EventType.CUSTOMER_STATUS_CHANGE)).thenReturn(true);
+	@Test
+	void process_newEvent_recordsItAndChangesTheStatus() {
+		when(processedEvents.recordIfNew(EVENT_ID, EventType.CUSTOMER_STATUS_CHANGE)).thenReturn(true);
 
-        processor.process(REQUEST);
+		processor.process(REQUEST);
 
-        // changeStatus is only reached when the stubbed recordIfNew call returned true.
-        verify(customerService).changeStatus(CUSTOMER_ID, CustomerStatus.INACTIVE);
-    }
+		// changeStatus is only reached when the stubbed recordIfNew call returned true.
+		verify(customerService).changeStatus(CUSTOMER_ID, CustomerStatus.INACTIVE);
+	}
 
-    @Test
-    void process_alreadyProcessedEvent_doesNotTouchTheCustomer() {
-        when(processedEvents.recordIfNew(EVENT_ID, EventType.CUSTOMER_STATUS_CHANGE)).thenReturn(false);
+	@Test
+	void process_alreadyProcessedEvent_doesNotTouchTheCustomer() {
+		when(processedEvents.recordIfNew(EVENT_ID, EventType.CUSTOMER_STATUS_CHANGE)).thenReturn(false);
 
-        processor.process(REQUEST);
+		processor.process(REQUEST);
 
-        verify(customerService, never()).changeStatus(anyLong(), any());
-    }
+		verify(customerService, never()).changeStatus(anyLong(), any());
+	}
 
-    @Test
-    void process_unknownCustomer_isRejectedAsInvalidWithoutTheCpfOrRetry() {
-        when(processedEvents.recordIfNew(EVENT_ID, EventType.CUSTOMER_STATUS_CHANGE)).thenReturn(true);
-        doThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "No customer exists with id 123."))
-                .when(customerService).changeStatus(anyLong(), any());
+	@Test
+	void process_unknownCustomer_isRejectedAsInvalidWithoutTheCpfOrRetry() {
+		when(processedEvents.recordIfNew(EVENT_ID, EventType.CUSTOMER_STATUS_CHANGE)).thenReturn(true);
+		doThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "No customer exists with id 123."))
+				.when(customerService).changeStatus(anyLong(), any());
 
-        assertThatThrownBy(() -> processor.process(REQUEST))
-                .isInstanceOf(InvalidStatusChangeException.class)
-                .hasMessage("Event " + EVENT_ID + ": No customer exists with id 123.");
-    }
+		assertThatThrownBy(() -> processor.process(REQUEST))
+				.isInstanceOf(InvalidStatusChangeException.class)
+				.hasMessage("Event " + EVENT_ID + ": No customer exists with id 123.");
+	}
 
-    @Test
-    void process_otherResponseStatusFailure_propagatesUnchanged() {
-        when(processedEvents.recordIfNew(EVENT_ID, EventType.CUSTOMER_STATUS_CHANGE)).thenReturn(true);
-        ResponseStatusException conflict = new ResponseStatusException(HttpStatus.CONFLICT, "Version conflict.");
-        doThrow(conflict).when(customerService).changeStatus(anyLong(), any());
+	@Test
+	void process_otherResponseStatusFailure_propagatesUnchanged() {
+		when(processedEvents.recordIfNew(EVENT_ID, EventType.CUSTOMER_STATUS_CHANGE)).thenReturn(true);
+		ResponseStatusException conflict = new ResponseStatusException(HttpStatus.CONFLICT, "Version conflict.");
+		doThrow(conflict).when(customerService).changeStatus(anyLong(), any());
 
-        assertThatThrownBy(() -> processor.process(REQUEST)).isSameAs(conflict);
-    }
+		assertThatThrownBy(() -> processor.process(REQUEST)).isSameAs(conflict);
+	}
 
-    @Test
-    void process_transientDatabaseFailure_propagatesForRetry() {
-        DataAccessResourceFailureException outage = new DataAccessResourceFailureException("database down");
-        when(processedEvents.recordIfNew(any(), any())).thenThrow(outage);
+	@Test
+	void process_transientDatabaseFailure_propagatesForRetry() {
+		DataAccessResourceFailureException outage = new DataAccessResourceFailureException("database down");
+		when(processedEvents.recordIfNew(any(), any())).thenThrow(outage);
 
-        assertThatThrownBy(() -> processor.process(REQUEST)).isSameAs(outage);
-    }
+		assertThatThrownBy(() -> processor.process(REQUEST)).isSameAs(outage);
+	}
 
-    @Test
-    void process_optimisticLockConflict_propagatesForRetry() {
-        when(processedEvents.recordIfNew(EVENT_ID, EventType.CUSTOMER_STATUS_CHANGE)).thenReturn(true);
-        ObjectOptimisticLockingFailureException conflict =
-                new ObjectOptimisticLockingFailureException("Customer", CUSTOMER_ID);
-        doThrow(conflict).when(customerService).changeStatus(anyLong(), any());
+	@Test
+	void process_optimisticLockConflict_propagatesForRetry() {
+		when(processedEvents.recordIfNew(EVENT_ID, EventType.CUSTOMER_STATUS_CHANGE)).thenReturn(true);
+		ObjectOptimisticLockingFailureException conflict =
+				new ObjectOptimisticLockingFailureException("Customer", CUSTOMER_ID);
+		doThrow(conflict).when(customerService).changeStatus(anyLong(), any());
 
-        assertThatThrownBy(() -> processor.process(REQUEST)).isSameAs(conflict);
-    }
+		assertThatThrownBy(() -> processor.process(REQUEST)).isSameAs(conflict);
+	}
 }

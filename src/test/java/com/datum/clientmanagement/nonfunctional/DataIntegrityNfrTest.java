@@ -51,192 +51,192 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SuppressWarnings({"SqlResolve", "SqlNoDataSourceInspection"}) // IDE has no database; the SQL runs against Testcontainers Postgres
 class DataIntegrityNfrTest {
 
-    private static final String UNIQUE_VIOLATION = "23505";
-    private static final String NOT_NULL_VIOLATION = "23502";
-    private static final String INSERT_CUSTOMER = "INSERT INTO customers "
-            + "(name, name_normalized, cpf, email, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, now(), now())";
-    private static final String INSERT_OUTBOX_EVENT = "INSERT INTO outbox_events (event_id, event_type, aggregate_id,"
-            + " payload) VALUES (?, 'CUSTOMER_CREATED', 1, CAST(? AS jsonb))";
-    private static final UUID OUTBOX_EVENT_ID = UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddddddd");
-    private static final UUID PROCESSED_EVENT_ID = UUID.fromString("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
-    private static final String ROW_SNAPSHOT =
-            "SELECT name, email, status, updated_at, version FROM customers WHERE id = ?";
+	private static final String UNIQUE_VIOLATION = "23505";
+	private static final String NOT_NULL_VIOLATION = "23502";
+	private static final String INSERT_CUSTOMER = "INSERT INTO customers "
+			+ "(name, name_normalized, cpf, email, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, now(), now())";
+	private static final String INSERT_OUTBOX_EVENT = "INSERT INTO outbox_events (event_id, event_type, aggregate_id,"
+			+ " payload) VALUES (?, 'CUSTOMER_CREATED', 1, CAST(? AS jsonb))";
+	private static final UUID OUTBOX_EVENT_ID = UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddddddd");
+	private static final UUID PROCESSED_EVENT_ID = UUID.fromString("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+	private static final String ROW_SNAPSHOT =
+			"SELECT name, email, status, updated_at, version FROM customers WHERE id = ?";
 
-    private static final JsonMapper JSON = JsonMapper.builder().build();
+	private static final JsonMapper JSON = JsonMapper.builder().build();
 
-    @Autowired
-    private MockMvc mockMvc;
+	@Autowired
+	private MockMvc mockMvc;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
 
-    @BeforeEach
-    void deleteAllCustomers() {
-        jdbcTemplate.update("DELETE FROM customers");
-    }
+	@BeforeEach
+	void deleteAllCustomers() {
+		jdbcTemplate.update("DELETE FROM customers");
+	}
 
-    // NFR-12:consistency — deterministic stale update, verified at row level
-    // Given customer X (cpf 52998224725, name "Ana Souza") and GET /customers/X returns "version":0
-    // When PUT /customers/X {"name":"A","email":"ana@example.com","status":"ACTIVE","version":0} -> 200, "version":1
-    //  And the customers row is read via SQL (snapshot S1: name, email, status, updated_at, version)
-    //  And PUT /customers/X {"name":"B","email":"b@example.com","status":"INACTIVE","version":0} is sent (stale)
-    // Then the second response is 409 problem+json with "status":409 and "instance":"/customers/X"
-    //  And the customers row read via SQL equals S1 exactly (name "A", version 1, updated_at unchanged)
-    @Test
-    @DisplayName("should reject a stale-version PUT with 409 and leave the stored row untouched")
-    void staleUpdate_returns409() throws Exception {
-        long id = createCustomer("Ana Souza", "52998224725");
-        String path = "/customers/" + id;
-        perform(get(path)).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(0));
+	// NFR-12:consistency — deterministic stale update, verified at row level
+	// Given customer X (cpf 52998224725, name "Ana Souza") and GET /customers/X returns "version":0
+	// When PUT /customers/X {"name":"A","email":"ana@example.com","status":"ACTIVE","version":0} -> 200, "version":1
+	//  And the customers row is read via SQL (snapshot S1: name, email, status, updated_at, version)
+	//  And PUT /customers/X {"name":"B","email":"b@example.com","status":"INACTIVE","version":0} is sent (stale)
+	// Then the second response is 409 problem+json with "status":409 and "instance":"/customers/X"
+	//  And the customers row read via SQL equals S1 exactly (name "A", version 1, updated_at unchanged)
+	@Test
+	@DisplayName("should reject a stale-version PUT with 409 and leave the stored row untouched")
+	void staleUpdate_returns409() throws Exception {
+		long id = createCustomer("Ana Souza", "52998224725");
+		String path = "/customers/" + id;
+		perform(get(path)).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(0));
 
-        perform(jsonRequest(put(path), "{\"name\":\"A\",\"email\":\"ana@example.com\",\"status\":\"ACTIVE\",\"version\":0}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.version").value(1));
-        Map<String, Object> snapshot = jdbcTemplate.queryForMap(ROW_SNAPSHOT, id);
+		perform(jsonRequest(put(path), "{\"name\":\"A\",\"email\":\"ana@example.com\",\"status\":\"ACTIVE\",\"version\":0}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.version").value(1));
+		Map<String, Object> snapshot = jdbcTemplate.queryForMap(ROW_SNAPSHOT, id);
 
-        perform(jsonRequest(put(path), "{\"name\":\"B\",\"email\":\"b@example.com\",\"status\":\"INACTIVE\",\"version\":0}"))
-                .andExpect(status().isConflict())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.instance").value(path));
+		perform(jsonRequest(put(path), "{\"name\":\"B\",\"email\":\"b@example.com\",\"status\":\"INACTIVE\",\"version\":0}"))
+				.andExpect(status().isConflict())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.status").value(409))
+				.andExpect(jsonPath("$.instance").value(path));
 
-        assertThat(jdbcTemplate.queryForMap(ROW_SNAPSHOT, id)).isEqualTo(snapshot);
-        assertThat(snapshot).containsEntry("name", "A").containsEntry("version", 1L);
-    }
+		assertThat(jdbcTemplate.queryForMap(ROW_SNAPSHOT, id)).isEqualTo(snapshot);
+		assertThat(snapshot).containsEntry("name", "A").containsEntry("version", 1L);
+	}
 
-    // NFR:data-integrity
-    // Given a customers row with cpf "52998224725"
-    // When a second row with cpf "52998224725" is inserted directly via SQL
-    // Then the insert fails with a unique-constraint violation (SQLState 23505)
-    @Test
-    @DisplayName("should reject a duplicate CPF at database level when inserted directly")
-    void dataIntegrity_cpfUniqueConstraint() {
-        insertCustomer("Ana Souza", "52998224725", "ana@example.com", "ACTIVE");
+	// NFR:data-integrity
+	// Given a customers row with cpf "52998224725"
+	// When a second row with cpf "52998224725" is inserted directly via SQL
+	// Then the insert fails with a unique-constraint violation (SQLState 23505)
+	@Test
+	@DisplayName("should reject a duplicate CPF at database level when inserted directly")
+	void dataIntegrity_cpfUniqueConstraint() {
+		insertCustomer("Ana Souza", "52998224725", "ana@example.com", "ACTIVE");
 
-        assertThat(sqlStateOf(() -> insertCustomer("Outra Pessoa", "52998224725", "outra@example.com", "ACTIVE")))
-                .isEqualTo(UNIQUE_VIOLATION);
-    }
+		assertThat(sqlStateOf(() -> insertCustomer("Outra Pessoa", "52998224725", "outra@example.com", "ACTIVE")))
+				.isEqualTo(UNIQUE_VIOLATION);
+	}
 
-    // NFR:data-integrity
-    // Given a processed_events row with event_id "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
-    // When the same event_id is inserted again via SQL
-    // Then the insert fails with SQLState 23505 (PK violation)
-    @Test
-    @DisplayName("should reject a duplicate eventId in processed_events at database level")
-    void dataIntegrity_processedEventsPrimaryKey() {
-        jdbcTemplate.update("DELETE FROM processed_events");
-        insertProcessedEvent(PROCESSED_EVENT_ID);
+	// NFR:data-integrity
+	// Given a processed_events row with event_id "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+	// When the same event_id is inserted again via SQL
+	// Then the insert fails with SQLState 23505 (PK violation)
+	@Test
+	@DisplayName("should reject a duplicate eventId in processed_events at database level")
+	void dataIntegrity_processedEventsPrimaryKey() {
+		jdbcTemplate.update("DELETE FROM processed_events");
+		insertProcessedEvent(PROCESSED_EVENT_ID);
 
-        assertThat(sqlStateOf(() -> insertProcessedEvent(PROCESSED_EVENT_ID))).isEqualTo(UNIQUE_VIOLATION);
-    }
+		assertThat(sqlStateOf(() -> insertProcessedEvent(PROCESSED_EVENT_ID))).isEqualTo(UNIQUE_VIOLATION);
+	}
 
-    // NFR:data-integrity
-    // Given an outbox_events row with event_id "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
-    // When another row with the same event_id is inserted via SQL
-    // Then the insert fails with SQLState 23505
-    @Test
-    @DisplayName("should reject a duplicate eventId in outbox_events at database level")
-    void dataIntegrity_outboxEventIdUnique() {
-        jdbcTemplate.update("DELETE FROM outbox_events");
-        insertOutboxEvent(OUTBOX_EVENT_ID);
+	// NFR:data-integrity
+	// Given an outbox_events row with event_id "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+	// When another row with the same event_id is inserted via SQL
+	// Then the insert fails with SQLState 23505
+	@Test
+	@DisplayName("should reject a duplicate eventId in outbox_events at database level")
+	void dataIntegrity_outboxEventIdUnique() {
+		jdbcTemplate.update("DELETE FROM outbox_events");
+		insertOutboxEvent(OUTBOX_EVENT_ID);
 
-        assertThat(sqlStateOf(() -> insertOutboxEvent(OUTBOX_EVENT_ID))).isEqualTo(UNIQUE_VIOLATION);
-    }
+		assertThat(sqlStateOf(() -> insertOutboxEvent(OUTBOX_EVENT_ID))).isEqualTo(UNIQUE_VIOLATION);
+	}
 
-    // AC-6 (ticket 06) — schema of migration V2__outbox_failure_details.sql
-    // Given the Flyway migrations have run
-    // When the outbox_events columns are read from information_schema
-    // Then last_failed_at is a nullable timestamptz and last_error_type a nullable varchar(20)
-    @Test
-    @DisplayName("should have nullable last_failed_at and last_error_type columns on outbox_events")
-    void dataIntegrity_outboxFailureDetailColumns() {
-        Map<String, Object> lastFailedAt = outboxColumn("last_failed_at");
-        assertThat(lastFailedAt).containsEntry("data_type", "timestamp with time zone")
-                .containsEntry("is_nullable", "YES");
-        Map<String, Object> lastErrorType = outboxColumn("last_error_type");
-        assertThat(lastErrorType).containsEntry("data_type", "character varying")
-                .containsEntry("character_maximum_length", 20)
-                .containsEntry("is_nullable", "YES");
-    }
+	// AC-6 (ticket 06) — schema of migration V2__outbox_failure_details.sql
+	// Given the Flyway migrations have run
+	// When the outbox_events columns are read from information_schema
+	// Then last_failed_at is a nullable timestamptz and last_error_type a nullable varchar(20)
+	@Test
+	@DisplayName("should have nullable last_failed_at and last_error_type columns on outbox_events")
+	void dataIntegrity_outboxFailureDetailColumns() {
+		Map<String, Object> lastFailedAt = outboxColumn("last_failed_at");
+		assertThat(lastFailedAt).containsEntry("data_type", "timestamp with time zone")
+				.containsEntry("is_nullable", "YES");
+		Map<String, Object> lastErrorType = outboxColumn("last_error_type");
+		assertThat(lastErrorType).containsEntry("data_type", "character varying")
+				.containsEntry("character_maximum_length", 20)
+				.containsEntry("is_nullable", "YES");
+	}
 
-    // NFR:data-integrity
-    // Given the customers table
-    // When a row is inserted via SQL with name NULL (and, separately, cpf NULL, email NULL, status NULL)
-    // Then each insert fails with SQLState 23502 (not-null violation)
-    @Test
-    @DisplayName("should reject null required columns in customers at database level")
-    void dataIntegrity_customersNotNullColumns() {
-        assertThat(sqlStateOf(() -> insertCustomer(null, "52998224725", "ana@example.com", "ACTIVE")))
-                .as("name NULL").isEqualTo(NOT_NULL_VIOLATION);
-        assertThat(sqlStateOf(() -> insertCustomer("Ana Souza", null, "ana@example.com", "ACTIVE")))
-                .as("cpf NULL").isEqualTo(NOT_NULL_VIOLATION);
-        assertThat(sqlStateOf(() -> insertCustomer("Ana Souza", "52998224725", null, "ACTIVE")))
-                .as("email NULL").isEqualTo(NOT_NULL_VIOLATION);
-        assertThat(sqlStateOf(() -> insertCustomer("Ana Souza", "52998224725", "ana@example.com", null)))
-                .as("status NULL").isEqualTo(NOT_NULL_VIOLATION);
-    }
+	// NFR:data-integrity
+	// Given the customers table
+	// When a row is inserted via SQL with name NULL (and, separately, cpf NULL, email NULL, status NULL)
+	// Then each insert fails with SQLState 23502 (not-null violation)
+	@Test
+	@DisplayName("should reject null required columns in customers at database level")
+	void dataIntegrity_customersNotNullColumns() {
+		assertThat(sqlStateOf(() -> insertCustomer(null, "52998224725", "ana@example.com", "ACTIVE")))
+				.as("name NULL").isEqualTo(NOT_NULL_VIOLATION);
+		assertThat(sqlStateOf(() -> insertCustomer("Ana Souza", null, "ana@example.com", "ACTIVE")))
+				.as("cpf NULL").isEqualTo(NOT_NULL_VIOLATION);
+		assertThat(sqlStateOf(() -> insertCustomer("Ana Souza", "52998224725", null, "ACTIVE")))
+				.as("email NULL").isEqualTo(NOT_NULL_VIOLATION);
+		assertThat(sqlStateOf(() -> insertCustomer("Ana Souza", "52998224725", "ana@example.com", null)))
+				.as("status NULL").isEqualTo(NOT_NULL_VIOLATION);
+	}
 
-    // NFR:data-integrity — ticket 04 support
-    // Given an ADMIN creates "João da Silva" and then PUTs name "Élise Março"
-    // When the customers row is read via SQL
-    // Then name_normalized is "joao da silva" after create and "elise marco" after update
-    @Test
-    @DisplayName("should keep name_normalized lowercased and accent-free when a customer is created or renamed")
-    void dataIntegrity_nameNormalizedMaintained() throws Exception {
-        long id = createCustomer("João da Silva", "39053344705");
-        assertThat(nameNormalizedOf(id)).isEqualTo("joao da silva");
+	// NFR:data-integrity — ticket 04 support
+	// Given an ADMIN creates "João da Silva" and then PUTs name "Élise Março"
+	// When the customers row is read via SQL
+	// Then name_normalized is "joao da silva" after create and "elise marco" after update
+	@Test
+	@DisplayName("should keep name_normalized lowercased and accent-free when a customer is created or renamed")
+	void dataIntegrity_nameNormalizedMaintained() throws Exception {
+		long id = createCustomer("João da Silva", "39053344705");
+		assertThat(nameNormalizedOf(id)).isEqualTo("joao da silva");
 
-        perform(jsonRequest(put("/customers/" + id),
-                "{\"name\":\"Élise Março\",\"email\":\"ana@example.com\",\"status\":\"ACTIVE\",\"version\":0}"))
-                .andExpect(status().isOk());
+		perform(jsonRequest(put("/customers/" + id),
+				"{\"name\":\"Élise Março\",\"email\":\"ana@example.com\",\"status\":\"ACTIVE\",\"version\":0}"))
+				.andExpect(status().isOk());
 
-        assertThat(nameNormalizedOf(id)).isEqualTo("elise marco");
-    }
+		assertThat(nameNormalizedOf(id)).isEqualTo("elise marco");
+	}
 
-    private long createCustomer(String name, String cpf) throws Exception {
-        String body = perform(jsonRequest(post("/customers"),
-                "{\"name\":\"" + name + "\",\"cpf\":\"" + cpf + "\",\"email\":\"ana@example.com\"}"))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        return JSON.readTree(body).path("id").asLong();
-    }
+	private long createCustomer(String name, String cpf) throws Exception {
+		String body = perform(jsonRequest(post("/customers"),
+				"{\"name\":\"" + name + "\",\"cpf\":\"" + cpf + "\",\"email\":\"ana@example.com\"}"))
+				.andExpect(status().isCreated())
+				.andReturn().getResponse().getContentAsString();
+		return JSON.readTree(body).path("id").asLong();
+	}
 
-    private String nameNormalizedOf(long id) {
-        return jdbcTemplate.queryForObject("SELECT name_normalized FROM customers WHERE id = ?", String.class, id);
-    }
+	private String nameNormalizedOf(long id) {
+		return jdbcTemplate.queryForObject("SELECT name_normalized FROM customers WHERE id = ?", String.class, id);
+	}
 
-    // The name doubles as name_normalized: these rows only exist to exercise the table constraints.
-    private void insertCustomer(String name, String cpf, String email, String status) {
-        jdbcTemplate.update(INSERT_CUSTOMER, name, name, cpf, email, status);
-    }
+	// The name doubles as name_normalized: these rows only exist to exercise the table constraints.
+	private void insertCustomer(String name, String cpf, String email, String status) {
+		jdbcTemplate.update(INSERT_CUSTOMER, name, name, cpf, email, status);
+	}
 
-    private Map<String, Object> outboxColumn(String column) {
-        return jdbcTemplate.queryForMap("SELECT data_type, character_maximum_length, is_nullable"
-                + " FROM information_schema.columns WHERE table_name = 'outbox_events' AND column_name = ?", column);
-    }
+	private Map<String, Object> outboxColumn(String column) {
+		return jdbcTemplate.queryForMap("SELECT data_type, character_maximum_length, is_nullable"
+				+ " FROM information_schema.columns WHERE table_name = 'outbox_events' AND column_name = ?", column);
+	}
 
-    private void insertProcessedEvent(UUID eventId) {
-        jdbcTemplate.update("INSERT INTO processed_events (event_id, event_type) VALUES (?, 'CUSTOMER_STATUS_CHANGE')",
-                eventId);
-    }
+	private void insertProcessedEvent(UUID eventId) {
+		jdbcTemplate.update("INSERT INTO processed_events (event_id, event_type) VALUES (?, 'CUSTOMER_STATUS_CHANGE')",
+				eventId);
+	}
 
-    private void insertOutboxEvent(UUID eventId) {
-        jdbcTemplate.update(INSERT_OUTBOX_EVENT, eventId, "{\"eventId\":\"" + eventId + "\"}");
-    }
+	private void insertOutboxEvent(UUID eventId) {
+		jdbcTemplate.update(INSERT_OUTBOX_EVENT, eventId, "{\"eventId\":\"" + eventId + "\"}");
+	}
 
-    private static String sqlStateOf(ThrowingCallable insert) {
-        DataAccessException failure = catchThrowableOfType(DataAccessException.class, insert);
-        assertThat(failure).as("the insert should be rejected by the database").isNotNull();
-        Throwable rootCause = NestedExceptionUtils.getMostSpecificCause(failure);
-        assertThat(rootCause).isInstanceOf(SQLException.class);
-        return ((SQLException) rootCause).getSQLState();
-    }
+	private static String sqlStateOf(ThrowingCallable insert) {
+		DataAccessException failure = catchThrowableOfType(DataAccessException.class, insert);
+		assertThat(failure).as("the insert should be rejected by the database").isNotNull();
+		Throwable rootCause = NestedExceptionUtils.getMostSpecificCause(failure);
+		assertThat(rootCause).isInstanceOf(SQLException.class);
+		return ((SQLException) rootCause).getSQLState();
+	}
 
-    private ResultActions perform(MockHttpServletRequestBuilder request) throws Exception {
-        return mockMvc.perform(request.with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))));
-    }
+	private ResultActions perform(MockHttpServletRequestBuilder request) throws Exception {
+		return mockMvc.perform(request.with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+	}
 
-    private static MockHttpServletRequestBuilder jsonRequest(MockHttpServletRequestBuilder request, String body) {
-        return request.contentType(MediaType.APPLICATION_JSON).content(body);
-    }
+	private static MockHttpServletRequestBuilder jsonRequest(MockHttpServletRequestBuilder request, String body) {
+		return request.contentType(MediaType.APPLICATION_JSON).content(body);
+	}
 }

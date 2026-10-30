@@ -13,19 +13,19 @@ import java.io.IOException;
  */
 final class ProblemDetailAccessDeniedHandler implements AccessDeniedHandler {
 
-    static final String DETAIL = "You do not have permission to perform this operation.";
+	static final String DETAIL = "You do not have permission to perform this operation.";
 
-    private final BearerTokenAccessDeniedHandler bearerAccessDenied = new BearerTokenAccessDeniedHandler();
-    private final ProblemDetailResponseWriter problemWriter;
+	private final BearerTokenAccessDeniedHandler bearerAccessDenied = new BearerTokenAccessDeniedHandler();
+	private final ProblemDetailResponseWriter problemWriter;
 
-    ProblemDetailAccessDeniedHandler(ProblemDetailResponseWriter problemWriter) {
-        this.problemWriter = problemWriter;
-    }
+	ProblemDetailAccessDeniedHandler(ProblemDetailResponseWriter problemWriter) {
+		this.problemWriter = problemWriter;
+	}
 
-    @Override
-    public void handle(HttpServletRequest request, HttpServletResponse response,
-                       AccessDeniedException accessDeniedException) throws IOException {
-        bearerAccessDenied.handle(request, response, accessDeniedException);
-        problemWriter.write(request, response, DETAIL);
-    }
+	@Override
+	public void handle(HttpServletRequest request, HttpServletResponse response,
+					   AccessDeniedException accessDeniedException) throws IOException {
+		bearerAccessDenied.handle(request, response, accessDeniedException);
+		problemWriter.write(request, response, DETAIL);
+	}
 }

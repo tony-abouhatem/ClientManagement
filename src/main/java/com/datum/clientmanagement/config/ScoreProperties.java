@@ -13,5 +13,9 @@ import java.time.Duration;
  */
 @Validated
 @ConfigurationProperties("app.score")
-public record ScoreProperties(@NotNull URI baseUrl, @NotNull Duration connectTimeout, @NotNull Duration readTimeout) {
+public record ScoreProperties(
+	@NotNull URI baseUrl,
+	@NotNull Duration connectTimeout,
+	@NotNull Duration readTimeout
+) {
 }

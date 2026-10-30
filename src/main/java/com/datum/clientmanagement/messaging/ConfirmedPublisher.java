@@ -33,55 +33,54 @@ import static com.datum.clientmanagement.model.enums.PublishFailureReason.UNROUT
 @Component
 class ConfirmedPublisher {
 
-    private final RabbitTemplate rabbitTemplate;
-    private final Duration confirmTimeout;
+	private final RabbitTemplate rabbitTemplate;
+	private final Duration confirmTimeout;
 
-    ConfirmedPublisher(RabbitTemplate rabbitTemplate, MessagingProperties properties) {
-        this.rabbitTemplate = rabbitTemplate;
-        this.confirmTimeout = properties.confirmTimeout();
-    }
+	ConfirmedPublisher(RabbitTemplate rabbitTemplate, MessagingProperties properties) {
+		this.rabbitTemplate = rabbitTemplate;
+		this.confirmTimeout = properties.confirmTimeout();
+	}
 
-    void publish(UUID eventId, String jsonPayload) {
-        CorrelationData correlation = new CorrelationData(eventId.toString());
-        try {
-            rabbitTemplate.send(MessagingTopology.CUSTOMER_EVENTS_EXCHANGE,
-                    MessagingTopology.CUSTOMER_CREATED_ROUTING_KEY, toMessage(eventId, jsonPayload), correlation);
-            CorrelationData.Confirm confirm =
-                    correlation.getFuture().get(confirmTimeout.toMillis(), TimeUnit.MILLISECONDS);
-            requireConfirmedAndRouted(confirm, correlation.getReturned());
-        } catch (AmqpException exception) {
-            throw new PublishFailedException(BROKER_DOWN, "RabbitMQ publish failed: " + exception.getMessage(),
-                    exception);
-        } catch (TimeoutException exception) {
-            throw new PublishFailedException(CONFIRM_TIMEOUT, "No publisher confirm within " + confirmTimeout,
-                    exception);
-        } catch (ExecutionException exception) {
-            throw new PublishFailedException(CONFIRM_TIMEOUT, "Publisher confirm failed: " + exception.getMessage(),
-                    exception);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new PublishFailedException(CONFIRM_TIMEOUT, "Interrupted while waiting for the publisher confirm",
-                    exception);
-        }
-    }
+	void publish(UUID eventId, String jsonPayload) {
+		CorrelationData correlation = new CorrelationData(eventId.toString());
+		try {
+			rabbitTemplate.send(MessagingTopology.CUSTOMER_EVENTS_EXCHANGE,
+					MessagingTopology.CUSTOMER_CREATED_ROUTING_KEY, toMessage(eventId, jsonPayload), correlation);
+			CorrelationData.Confirm confirm =
+					correlation.getFuture().get(confirmTimeout.toMillis(), TimeUnit.MILLISECONDS);
+			requireConfirmedAndRouted(confirm, correlation.getReturned());
+		} catch (AmqpException exception) {
+			throw new PublishFailedException(BROKER_DOWN, "RabbitMQ publish failed: " + exception.getMessage(),
+					exception);
+		} catch (TimeoutException exception) {
+			throw new PublishFailedException(CONFIRM_TIMEOUT, "No publisher confirm within " + confirmTimeout,
+					exception);
+		} catch (ExecutionException exception) {
+			throw new PublishFailedException(CONFIRM_TIMEOUT, "Publisher confirm failed: " + exception.getMessage(),
+					exception);
+		} catch (InterruptedException exception) {
+			Thread.currentThread().interrupt();
+			throw new PublishFailedException(CONFIRM_TIMEOUT, "Interrupted while waiting for the publisher confirm",
+					exception);
+		}
+	}
 
-    // Spring AMQP sets the returned message before it completes the confirm future, so it is safe to check here.
-    private void requireConfirmedAndRouted(CorrelationData.Confirm confirm, ReturnedMessage returned) {
-        if (!confirm.ack()) {
-            throw new PublishFailedException(NACK, "RabbitMQ nacked the message: " + confirm.reason());
-        }
-        if (returned != null) {
-            throw new PublishFailedException(UNROUTABLE,
-                    "RabbitMQ returned the message as unroutable: " + returned.getReplyText());
-        }
-    }
+	// Spring AMQP sets the returned message before it completes the confirm future, so it is safe to check here.
+	private void requireConfirmedAndRouted(CorrelationData.Confirm confirm, ReturnedMessage returned) {
+		if (!confirm.ack())
+			throw new PublishFailedException(NACK, "RabbitMQ nacked the message: " + confirm.reason());
+		if (returned != null) {
+			throw new PublishFailedException(UNROUTABLE,
+					"RabbitMQ returned the message as unroutable: " + returned.getReplyText());
+		}
+	}
 
-    private Message toMessage(UUID eventId, String jsonPayload) {
-        return MessageBuilder.withBody(jsonPayload.getBytes(StandardCharsets.UTF_8))
-                .setContentType(MessageProperties.CONTENT_TYPE_JSON)
-                .setContentEncoding(StandardCharsets.UTF_8.name())
-                .setMessageId(eventId.toString())
-                .setDeliveryMode(MessageDeliveryMode.PERSISTENT)
-                .build();
-    }
+	private Message toMessage(UUID eventId, String jsonPayload) {
+		return MessageBuilder.withBody(jsonPayload.getBytes(StandardCharsets.UTF_8))
+				.setContentType(MessageProperties.CONTENT_TYPE_JSON)
+				.setContentEncoding(StandardCharsets.UTF_8.name())
+				.setMessageId(eventId.toString())
+				.setDeliveryMode(MessageDeliveryMode.PERSISTENT)
+				.build();
+	}
 }

@@ -11,19 +11,19 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class RecordingStatementInspector implements StatementInspector {
 
-    private static final List<String> STATEMENTS = new CopyOnWriteArrayList<>();
+	private static final List<String> STATEMENTS = new CopyOnWriteArrayList<>();
 
-    static List<String> statements() {
-        return List.copyOf(STATEMENTS);
-    }
+	static List<String> statements() {
+		return List.copyOf(STATEMENTS);
+	}
 
-    static void clear() {
-        STATEMENTS.clear();
-    }
+	static void clear() {
+		STATEMENTS.clear();
+	}
 
-    @Override
-    public String inspect(String sql) {
-        STATEMENTS.add(sql);
-        return sql;
-    }
+	@Override
+	public String inspect(String sql) {
+		STATEMENTS.add(sql);
+		return sql;
+	}
 }

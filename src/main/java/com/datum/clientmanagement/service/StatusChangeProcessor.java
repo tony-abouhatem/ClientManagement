@@ -21,31 +21,30 @@ import org.springframework.web.server.ResponseStatusException;
 @Component
 public class StatusChangeProcessor {
 
-    private final Logger log = LoggerFactory.getLogger(StatusChangeProcessor.class);
+	private final Logger log = LoggerFactory.getLogger(StatusChangeProcessor.class);
 
-    private final ProcessedEventStore processedEvents;
-    private final CustomerService customerService;
+	private final ProcessedEventStore processedEvents;
+	private final CustomerService customerService;
 
-    StatusChangeProcessor(ProcessedEventStore processedEvents, CustomerService customerService) {
-        this.processedEvents = processedEvents;
-        this.customerService = customerService;
-    }
+	StatusChangeProcessor(ProcessedEventStore processedEvents, CustomerService customerService) {
+		this.processedEvents = processedEvents;
+		this.customerService = customerService;
+	}
 
-    @Transactional
-    public void process(StatusChangeRequest request) {
-        if (!processedEvents.recordIfNew(request.eventId(), EventType.CUSTOMER_STATUS_CHANGE)) {
-            log.info("Status change event {} was already processed; acknowledged as a duplicate", request.eventId());
-            return;
-        }
-        try {
-            customerService.changeStatus(request.customerId(), request.status());
-        } catch (ResponseStatusException exception) {
-            if (exception.getStatusCode() != HttpStatus.NOT_FOUND) {
-                throw exception;
-            }
-            // getReason(), not getMessage(): the latter is prefixed with "404 NOT_FOUND".
-            throw new InvalidStatusChangeException("Event " + request.eventId() + ": " + exception.getReason());
-        }
-        log.info("Status change event {} processed for customer {}", request.eventId(), request.customerId());
-    }
+	@Transactional
+	public void process(StatusChangeRequest request) {
+		if (!processedEvents.recordIfNew(request.eventId(), EventType.CUSTOMER_STATUS_CHANGE)) {
+			log.info("Status change event {} was already processed; acknowledged as a duplicate", request.eventId());
+			return;
+		}
+		try {
+			customerService.changeStatus(request.customerId(), request.status());
+		} catch (ResponseStatusException exception) {
+			if (exception.getStatusCode() != HttpStatus.NOT_FOUND)
+				throw exception;
+			// getReason(), not getMessage(): the latter is prefixed with "404 NOT_FOUND".
+			throw new InvalidStatusChangeException("Event " + request.eventId() + ": " + exception.getReason());
+		}
+		log.info("Status change event {} processed for customer {}", request.eventId(), request.customerId());
+	}
 }

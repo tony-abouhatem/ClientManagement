@@ -33,75 +33,74 @@ import java.time.Instant;
 @Component
 public class OutboxRelay {
 
-    static final String RETRY_INSTANCE = "outbox";
+	static final String RETRY_INSTANCE = "outbox";
 
-    private final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
-    private final Limit ONE_ROW = Limit.of(1);
+	private final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
+	private final Limit ONE_ROW = Limit.of(1);
 
-    private final OutboxEventRepository outbox;
-    private final ConfirmedPublisher publisher;
-    private final Clock clock;
-    private final TransactionTemplate transaction;
-    private final IntervalBiFunction<Object> retryDelays;
-    private final int maxAttempts;
-    private final int batchSize;
+	private final OutboxEventRepository outbox;
+	private final ConfirmedPublisher publisher;
+	private final Clock clock;
+	private final TransactionTemplate transaction;
+	private final IntervalBiFunction<Object> retryDelays;
+	private final int maxAttempts;
+	private final int batchSize;
 
-    OutboxRelay(OutboxEventRepository outbox, ConfirmedPublisher publisher, Clock clock,
-            PlatformTransactionManager transactionManager, OutboxProperties properties, RetryRegistry retryRegistry) {
-        this.outbox = outbox;
-        this.publisher = publisher;
-        this.clock = clock;
-        this.transaction = new TransactionTemplate(transactionManager);
-        RetryConfig retryConfig = retryRegistry.retry(RETRY_INSTANCE).getRetryConfig();
-        this.retryDelays = retryConfig.getIntervalBiFunction();
-        this.maxAttempts = retryConfig.getMaxAttempts();
-        this.batchSize = properties.batchSize();
-    }
+	OutboxRelay(OutboxEventRepository outbox, ConfirmedPublisher publisher, Clock clock,
+			PlatformTransactionManager transactionManager, OutboxProperties properties, RetryRegistry retryRegistry) {
+		this.outbox = outbox;
+		this.publisher = publisher;
+		this.clock = clock;
+		this.transaction = new TransactionTemplate(transactionManager);
+		RetryConfig retryConfig = retryRegistry.retry(RETRY_INSTANCE).getRetryConfig();
+		this.retryDelays = retryConfig.getIntervalBiFunction();
+		this.maxAttempts = retryConfig.getMaxAttempts();
+		this.batchSize = properties.batchSize();
+	}
 
-    /** Relays up to {@code batch-size} due events, one transaction each. Called on a schedule. */
-    public void relayPending() {
-        int relayed = 0;
-        while (relayed < batchSize && Boolean.TRUE.equals(transaction.execute(status -> relayOldestDue()))) {
-            relayed++;
-        }
-    }
+	/** Relays up to {@code batch-size} due events, one transaction each. Called on a schedule. */
+	public void relayPending() {
+		int relayed = 0;
+		while (relayed < batchSize && Boolean.TRUE.equals(transaction.execute(status -> relayOldestDue())))
+			relayed++;
+	}
 
-    /** Returns false when no due event is left. */
-    private boolean relayOldestDue() {
-        return outbox.lockDue(clock.instant(), maxAttempts, ONE_ROW).stream()
-                .findFirst()
-                .map(event -> {
-                    relay(event);
-                    return true;
-                })
-                .orElse(false);
-    }
+	/** Returns false when no due event is left. */
+	private boolean relayOldestDue() {
+		return outbox.lockDue(clock.instant(), maxAttempts, ONE_ROW).stream()
+				.findFirst()
+				.map(event -> {
+					relay(event);
+					return true;
+				})
+				.orElse(false);
+	}
 
-    private void relay(OutboxEventEntity event) {
-        try {
-            publisher.publish(event.getEventId(), event.getPayload());
-            event.markSent(clock.instant());
-            log.info("Relayed outbox event {} after {} failed attempts", event.getEventId(), event.getAttempts());
-        } catch (PublishFailedException exception) {
-            recordFailure(event, exception);
-        }
-    }
+	private void relay(OutboxEventEntity event) {
+		try {
+			publisher.publish(event.getEventId(), event.getPayload());
+			event.markSent(clock.instant());
+			log.info("Relayed outbox event {} after {} failed attempts", event.getEventId(), event.getAttempts());
+		} catch (PublishFailedException exception) {
+			recordFailure(event, exception);
+		}
+	}
 
-    private void recordFailure(OutboxEventEntity event, PublishFailedException failure) {
-        Instant failedAt = clock.instant();
-        Instant retryAt = failedAt.plus(delayAfterFailure(event.getAttempts() + 1, failure));
-        event.markFailed(failure, failedAt, retryAt);
-        if (event.getAttempts() >= maxAttempts) {
-            log.error("Outbox event {} gave up after {} attempts (last error {}); it stays in outbox_events as a dead"
-                    + " row until it is replayed manually", event.getEventId(), event.getAttempts(),
-                    failure.getReason());
-        } else {
-            log.warn("Outbox event {} failed attempt {} ({}), next attempt at {}: {}", event.getEventId(),
-                    event.getAttempts(), failure.getReason(), retryAt, failure.getMessage());
-        }
-    }
+	private void recordFailure(OutboxEventEntity event, PublishFailedException failure) {
+		Instant failedAt = clock.instant();
+		Instant retryAt = failedAt.plus(delayAfterFailure(event.getAttempts() + 1, failure));
+		event.markFailed(failure, failedAt, retryAt);
+		if (event.getAttempts() >= maxAttempts) {
+			log.error("Outbox event {} gave up after {} attempts (last error {}); it stays in outbox_events as a dead"
+					+ " row until it is replayed manually", event.getEventId(), event.getAttempts(),
+					failure.getReason());
+		} else {
+			log.warn("Outbox event {} failed attempt {} ({}), next attempt at {}: {}", event.getEventId(),
+					event.getAttempts(), failure.getReason(), retryAt, failure.getMessage());
+		}
+	}
 
-    private Duration delayAfterFailure(int failedAttempts, PublishFailedException failure) {
-        return Duration.ofMillis(retryDelays.apply(failedAttempts, Either.left(failure)));
-    }
+	private Duration delayAfterFailure(int failedAttempts, PublishFailedException failure) {
+		return Duration.ofMillis(retryDelays.apply(failedAttempts, Either.left(failure)));
+	}
 }

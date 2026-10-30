@@ -17,24 +17,24 @@ import java.util.List;
 @TestConfiguration(proxyBeanMethods = false)
 public class RestartableRabbitConfiguration {
 
-    private static final int AMQP_PORT = 5672;
+	private static final int AMQP_PORT = 5672;
 
-    @Bean
-    @ServiceConnection
-    PostgreSQLContainer postgresContainer() {
-        return new PostgreSQLContainer(TestcontainersConfiguration.POSTGRES_IMAGE);
-    }
+	@Bean
+	@ServiceConnection
+	PostgreSQLContainer postgresContainer() {
+		return new PostgreSQLContainer(TestcontainersConfiguration.POSTGRES_IMAGE);
+	}
 
-    @Bean
-    @ServiceConnection
-    RabbitMQContainer rabbitContainer() {
-        RabbitMQContainer container = new RabbitMQContainer(TestcontainersConfiguration.RABBITMQ_IMAGE);
-        container.setPortBindings(List.of(TestPorts.freePort() + ":" + AMQP_PORT));
-        return container;
-    }
+	@Bean
+	@ServiceConnection
+	RabbitMQContainer rabbitContainer() {
+		RabbitMQContainer container = new RabbitMQContainer(TestcontainersConfiguration.RABBITMQ_IMAGE);
+		container.setPortBindings(List.of(TestPorts.freePort() + ":" + AMQP_PORT));
+		return container;
+	}
 
-    @Bean
-    RabbitOutage rabbitOutage(RabbitMQContainer rabbitContainer, ConnectionFactory connectionFactory) {
-        return new RabbitOutage(rabbitContainer, connectionFactory);
-    }
+	@Bean
+	RabbitOutage rabbitOutage(RabbitMQContainer rabbitContainer, ConnectionFactory connectionFactory) {
+		return new RabbitOutage(rabbitContainer, connectionFactory);
+	}
 }

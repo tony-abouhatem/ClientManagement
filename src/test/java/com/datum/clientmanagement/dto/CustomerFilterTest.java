@@ -10,23 +10,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class CustomerFilterTest {
 
-    @Test
-    void fromQuery_normalizesNameAndParsesStatus() {
-        CustomerFilter filter = CustomerFilter.fromQuery("INACTIVE", "  JOÃO da Silva ");
+	@Test
+	void fromQuery_normalizesNameAndParsesStatus() {
+		CustomerFilter filter = CustomerFilter.fromQuery("INACTIVE", "  JOÃO da Silva ");
 
-        assertThat(filter.status()).isEqualTo(CustomerStatus.INACTIVE);
-        assertThat(filter.normalizedName()).isEqualTo("joao da silva");
-    }
+		assertThat(filter.status()).isEqualTo(CustomerStatus.INACTIVE);
+		assertThat(filter.normalizedName()).isEqualTo("joao da silva");
+	}
 
-    @Test
-    void fromQuery_keepsInnerSpacesOfName() {
-        assertThat(CustomerFilter.fromQuery(null, "ão d").normalizedName()).isEqualTo("ao d");
-    }
+	@Test
+	void fromQuery_keepsInnerSpacesOfName() {
+		assertThat(CustomerFilter.fromQuery(null, "ão d").normalizedName()).isEqualTo("ao d");
+	}
 
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(strings = {"", "   "})
-    void fromQuery_missingOrBlankName_meansNoNameFilter(String name) {
-        assertThat(CustomerFilter.fromQuery(null, name)).isEqualTo(new CustomerFilter(null, null));
-    }
+	@ParameterizedTest
+	@NullSource
+	@ValueSource(strings = {"", "   "})
+	void fromQuery_missingOrBlankName_meansNoNameFilter(String name) {
+		assertThat(CustomerFilter.fromQuery(null, name)).isEqualTo(new CustomerFilter(null, null));
+	}
 }

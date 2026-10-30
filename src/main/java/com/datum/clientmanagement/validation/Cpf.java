@@ -26,9 +26,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Cpf {
 
-    String message() default "must be a valid CPF (11 digits with valid check digits)";
+	String message() default "must be a valid CPF (11 digits with valid check digits)";
 
-    Class<?>[] groups() default {};
+	Class<?>[] groups() default {};
 
-    Class<? extends Payload>[] payload() default {};
+	Class<? extends Payload>[] payload() default {};
 }

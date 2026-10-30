@@ -37,59 +37,59 @@ import static org.mockito.Mockito.doReturn;
 @SuppressWarnings({"SqlResolve", "SqlNoDataSourceInspection"}) // IDE has no database; the SQL runs against Testcontainers Postgres
 class CustomerServiceDatabaseGuardTest {
 
-    private static final String CPF = "52998224725";
+	private static final String CPF = "52998224725";
 
-    @Autowired
-    private CustomerService customerService;
+	@Autowired
+	private CustomerService customerService;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
 
-    // The service transaction's persistence context, used to load the row the way the repository would.
-    @Autowired
-    private EntityManager entityManager;
+	// The service transaction's persistence context, used to load the row the way the repository would.
+	@Autowired
+	private EntityManager entityManager;
 
-    @MockitoSpyBean
-    private CustomerRepository customerRepository;
+	@MockitoSpyBean
+	private CustomerRepository customerRepository;
 
-    @BeforeEach
-    void deleteAllCustomers() {
-        jdbcTemplate.update("DELETE FROM customers");
-    }
+	@BeforeEach
+	void deleteAllCustomers() {
+		jdbcTemplate.update("DELETE FROM customers");
+	}
 
-    @Test
-    void create_duplicateCpfCaughtOnlyByDatabase_throwsDuplicateCpf() {
-        doReturn(false).when(customerRepository).existsByCpf(anyString());
-        customerService.create(new CustomerRequests.Create("Ana Souza", CPF, "ana@example.com", null));
+	@Test
+	void create_duplicateCpfCaughtOnlyByDatabase_throwsDuplicateCpf() {
+		doReturn(false).when(customerRepository).existsByCpf(anyString());
+		customerService.create(new CustomerRequests.Create("Ana Souza", CPF, "ana@example.com", null));
 
-        assertResponseStatus(() -> customerService.create(
-                new CustomerRequests.Create("Outra Pessoa", CPF, "outra@example.com", null)),
-                CustomerService.DUPLICATE_CPF_MESSAGE);
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM customers WHERE cpf = ?", Integer.class, CPF))
-                .isEqualTo(1);
-    }
+		assertResponseStatus(() -> customerService.create(
+				new CustomerRequests.Create("Outra Pessoa", CPF, "outra@example.com", null)),
+				CustomerService.DUPLICATE_CPF_MESSAGE);
+		assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM customers WHERE cpf = ?", Integer.class, CPF))
+				.isEqualTo(1);
+	}
 
-    @Test
-    void update_rowChangedAfterVersionCheck_throwsVersionConflict() {
-        long id = customerService.create(new CustomerRequests.Create("Ana Souza", CPF, "ana@example.com", null)).getId();
-        // Another writer bumps the row right after it was loaded, so only the version in the UPDATE's WHERE catches it.
-        doAnswer(invocation -> {
-            Optional<Customer> loaded = Optional.ofNullable(entityManager.find(Customer.class, id));
-            jdbcTemplate.update("UPDATE customers SET name = 'Other Writer', version = version + 1 WHERE id = ?", id);
-            return loaded;
-        }).when(customerRepository).findById(id);
+	@Test
+	void update_rowChangedAfterVersionCheck_throwsVersionConflict() {
+		long id = customerService.create(new CustomerRequests.Create("Ana Souza", CPF, "ana@example.com", null)).getId();
+		// Another writer bumps the row right after it was loaded, so only the version in the UPDATE's WHERE catches it.
+		doAnswer(invocation -> {
+			Optional<Customer> loaded = Optional.ofNullable(entityManager.find(Customer.class, id));
+			jdbcTemplate.update("UPDATE customers SET name = 'Other Writer', version = version + 1 WHERE id = ?", id);
+			return loaded;
+		}).when(customerRepository).findById(id);
 
-        assertResponseStatus(() -> customerService.update(id,
-                new CustomerRequests.Update("Name A", "ana@example.com", "ACTIVE", 0L, null)),
-                CustomerService.VERSION_CONFLICT_MESSAGE.formatted(id));
-        assertThat(jdbcTemplate.queryForObject("SELECT name FROM customers WHERE id = ?", String.class, id))
-                .isNotEqualTo("Name A");
-    }
+		assertResponseStatus(() -> customerService.update(id,
+				new CustomerRequests.Update("Name A", "ana@example.com", "ACTIVE", 0L, null)),
+				CustomerService.VERSION_CONFLICT_MESSAGE.formatted(id));
+		assertThat(jdbcTemplate.queryForObject("SELECT name FROM customers WHERE id = ?", String.class, id))
+				.isNotEqualTo("Name A");
+	}
 
-    private static void assertResponseStatus(ThrowingCallable call, String reason) {
-        assertThatThrownBy(call).isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
-            assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-            assertThat(exception.getReason()).isEqualTo(reason);
-        });
-    }
+	private static void assertResponseStatus(ThrowingCallable call, String reason) {
+		assertThatThrownBy(call).isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+			assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+			assertThat(exception.getReason()).isEqualTo(reason);
+		});
+	}
 }

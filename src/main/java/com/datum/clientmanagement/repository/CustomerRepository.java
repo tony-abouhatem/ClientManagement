@@ -9,10 +9,10 @@ import org.springframework.data.repository.query.Param;
 
 public interface CustomerRepository extends JpaRepository<Customer, Long>, JpaSpecificationExecutor<Customer> {
 
-    boolean existsByCpf(String cpf);
+	boolean existsByCpf(String cpf);
 
-    /** Deletes in one statement, without loading the entity or checking its version, so racing deletes never fail. */
-    @Modifying
-    @Query("DELETE FROM Customer customer WHERE customer.id = :id")
-    void deleteCustomerById(@Param("id") long id);
+	/** Deletes in one statement, without loading the entity or checking its version, so racing deletes never fail. */
+	@Modifying
+	@Query("DELETE FROM Customer customer WHERE customer.id = :id")
+	void deleteCustomerById(@Param("id") long id);
 }

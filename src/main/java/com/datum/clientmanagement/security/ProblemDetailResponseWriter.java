@@ -17,13 +17,13 @@ import java.net.URI;
  */
 final class ProblemDetailResponseWriter {
 
-    // The no-arg constructor registers Spring's ProblemDetail mix-in, so the JSON has the RFC 7807 shape.
-    private final JacksonJsonHttpMessageConverter converter = new JacksonJsonHttpMessageConverter();
+	// The no-arg constructor registers Spring's ProblemDetail mix-in, so the JSON has the RFC 7807 shape.
+	private final JacksonJsonHttpMessageConverter converter = new JacksonJsonHttpMessageConverter();
 
-    /** Writes a problem body using the status already set on the response. */
-    void write(HttpServletRequest request, HttpServletResponse response, String detail) throws IOException {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.valueOf(response.getStatus()), detail);
-        problem.setInstance(URI.create(request.getRequestURI()));
-        converter.write(problem, MediaType.APPLICATION_PROBLEM_JSON, new ServletServerHttpResponse(response));
-    }
+	/** Writes a problem body using the status already set on the response. */
+	void write(HttpServletRequest request, HttpServletResponse response, String detail) throws IOException {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.valueOf(response.getStatus()), detail);
+		problem.setInstance(URI.create(request.getRequestURI()));
+		converter.write(problem, MediaType.APPLICATION_PROBLEM_JSON, new ServletServerHttpResponse(response));
+	}
 }

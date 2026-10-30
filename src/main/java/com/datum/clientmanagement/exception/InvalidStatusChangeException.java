@@ -9,7 +9,7 @@ import org.springframework.amqp.AmqpRejectAndDontRequeueException;
  */
 public class InvalidStatusChangeException extends AmqpRejectAndDontRequeueException {
 
-    public InvalidStatusChangeException(String message) {
-        super(message);
-    }
+	public InvalidStatusChangeException(String message) {
+		super(message);
+	}
 }

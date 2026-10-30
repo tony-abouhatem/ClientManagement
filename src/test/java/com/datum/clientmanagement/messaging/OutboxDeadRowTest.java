@@ -39,7 +39,7 @@ import static org.mockito.Mockito.verify;
  * replays the row.
  */
 @SpringBootTest(properties = {"app.outbox.relay-interval=1h",
-        "resilience4j.retry.instances.outbox.max-attempts=" + OutboxDeadRowTest.MAX_ATTEMPTS})
+		"resilience4j.retry.instances.outbox.max-attempts=" + OutboxDeadRowTest.MAX_ATTEMPTS})
 @ActiveProfiles("test")
 @Import(TestcontainersConfiguration.class)
 @Testcontainers(disabledWithoutDocker = true)
@@ -47,91 +47,91 @@ import static org.mockito.Mockito.verify;
 @SuppressWarnings({"SqlResolve", "SqlNoDataSourceInspection"}) // IDE has no database; the SQL runs against Testcontainers Postgres
 class OutboxDeadRowTest {
 
-    static final int MAX_ATTEMPTS = 2;
+	static final int MAX_ATTEMPTS = 2;
 
-    private static final Duration CLOCK_SKEW_TOLERANCE = Duration.ofSeconds(5);
+	private static final Duration CLOCK_SKEW_TOLERANCE = Duration.ofSeconds(5);
 
-    private static final String INSERT_OUTBOX_ROW = "INSERT INTO outbox_events"
-            + " (event_id, event_type, aggregate_id, payload, created_at, attempts, next_attempt_at)"
-            + " VALUES (?, 'CUSTOMER_CREATED', 1, CAST(? AS jsonb), ?, ?, ?)";
+	private static final String INSERT_OUTBOX_ROW = "INSERT INTO outbox_events"
+			+ " (event_id, event_type, aggregate_id, payload, created_at, attempts, next_attempt_at)"
+			+ " VALUES (?, 'CUSTOMER_CREATED', 1, CAST(? AS jsonb), ?, ?, ?)";
 
-    @Autowired
-    private OutboxRelay relay;
+	@Autowired
+	private OutboxRelay relay;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
 
-    @Autowired
-    private AmqpAdmin amqpAdmin;
+	@Autowired
+	private AmqpAdmin amqpAdmin;
 
-    @MockitoSpyBean
-    private ConfirmedPublisher publisher;
+	@MockitoSpyBean
+	private ConfirmedPublisher publisher;
 
-    @BeforeEach
-    void cleanState() {
-        jdbcTemplate.update("DELETE FROM outbox_events");
-        amqpAdmin.purgeQueue(MessagingTopology.CUSTOMER_CREATED_QUEUE, false);
-    }
+	@BeforeEach
+	void cleanState() {
+		jdbcTemplate.update("DELETE FROM outbox_events");
+		amqpAdmin.purgeQueue(MessagingTopology.CUSTOMER_CREATED_QUEUE, false);
+	}
 
-    @Test
-    void relayPending_deadRow_isNotPickedUp() {
-        UUID dead = insertDueRow(MAX_ATTEMPTS);
+	@Test
+	void relayPending_deadRow_isNotPickedUp() {
+		UUID dead = insertDueRow(MAX_ATTEMPTS);
 
-        relay.relayPending();
+		relay.relayPending();
 
-        verify(publisher, never()).publish(any(UUID.class), anyString());
-        assertThat(row(dead)).containsEntry("attempts", MAX_ATTEMPTS).containsEntry("sent_at", null);
-    }
+		verify(publisher, never()).publish(any(UUID.class), anyString());
+		assertThat(row(dead)).containsEntry("attempts", MAX_ATTEMPTS).containsEntry("sent_at", null);
+	}
 
-    @Test
-    void relayPending_failureReachingMaxAttempts_logsErrorAndTheRowIsNotRetried(CapturedOutput output) {
-        UUID eventId = insertDueRow(MAX_ATTEMPTS - 1);
-        doThrow(new PublishFailedException(PublishFailureReason.NACK, "RabbitMQ nacked the message"))
-                .when(publisher).publish(any(UUID.class), anyString());
+	@Test
+	void relayPending_failureReachingMaxAttempts_logsErrorAndTheRowIsNotRetried(CapturedOutput output) {
+		UUID eventId = insertDueRow(MAX_ATTEMPTS - 1);
+		doThrow(new PublishFailedException(PublishFailureReason.NACK, "RabbitMQ nacked the message"))
+				.when(publisher).publish(any(UUID.class), anyString());
 
-        relay.relayPending();
+		relay.relayPending();
 
-        Map<String, Object> afterLimit = row(eventId);
-        assertThat(afterLimit).containsEntry("attempts", MAX_ATTEMPTS).containsEntry("last_error_type", "NACK");
-        assertThat(afterLimit.get("last_failed_at")).isNotNull();
-        assertThat(output.getOut().lines()
-                .filter(line -> line.contains(" ERROR ") && line.contains(eventId.toString())).toList())
-                .singleElement()
-                .satisfies(line -> assertThat(line).contains(MAX_ATTEMPTS + " attempts", "NACK"));
+		Map<String, Object> afterLimit = row(eventId);
+		assertThat(afterLimit).containsEntry("attempts", MAX_ATTEMPTS).containsEntry("last_error_type", "NACK");
+		assertThat(afterLimit.get("last_failed_at")).isNotNull();
+		assertThat(output.getOut().lines()
+				.filter(line -> line.contains(" ERROR ") && line.contains(eventId.toString())).toList())
+				.singleElement()
+				.satisfies(line -> assertThat(line).contains(MAX_ATTEMPTS + " attempts", "NACK"));
 
-        jdbcTemplate.update("UPDATE outbox_events SET next_attempt_at = ? WHERE event_id = ?",
-                Timestamp.from(Instant.now().minusSeconds(1)), eventId);
-        relay.relayPending();
+		jdbcTemplate.update("UPDATE outbox_events SET next_attempt_at = ? WHERE event_id = ?",
+				Timestamp.from(Instant.now().minusSeconds(1)), eventId);
+		relay.relayPending();
 
-        verify(publisher, times(1)).publish(any(UUID.class), anyString());
-    }
+		verify(publisher, times(1)).publish(any(UUID.class), anyString());
+	}
 
-    @Test
-    void relayPending_afterManualReset_relaysTheDeadRowAgain() {
-        UUID eventId = insertDueRow(MAX_ATTEMPTS);
-        relay.relayPending();
-        assertThat(row(eventId).get("sent_at")).isNull();
+	@Test
+	void relayPending_afterManualReset_relaysTheDeadRowAgain() {
+		UUID eventId = insertDueRow(MAX_ATTEMPTS);
+		relay.relayPending();
+		assertThat(row(eventId).get("sent_at")).isNull();
 
-        // The documented manual replay. It uses the database clock, which may run slightly ahead of the JVM's.
-        jdbcTemplate.update("UPDATE outbox_events SET attempts = 0, next_attempt_at = now() WHERE event_id = ?",
-                eventId);
+		// The documented manual replay. It uses the database clock, which may run slightly ahead of the JVM's.
+		jdbcTemplate.update("UPDATE outbox_events SET attempts = 0, next_attempt_at = now() WHERE event_id = ?",
+				eventId);
 
-        Awaitility.await().atMost(CLOCK_SKEW_TOLERANCE).untilAsserted(() -> {
-            relay.relayPending();
-            assertThat(row(eventId).get("sent_at")).isNotNull();
-        });
-    }
+		Awaitility.await().atMost(CLOCK_SKEW_TOLERANCE).untilAsserted(() -> {
+			relay.relayPending();
+			assertThat(row(eventId).get("sent_at")).isNotNull();
+		});
+	}
 
-    private UUID insertDueRow(int attempts) {
-        UUID eventId = UUID.randomUUID();
-        Timestamp past = Timestamp.from(Instant.now().minusSeconds(10));
-        jdbcTemplate.update(INSERT_OUTBOX_ROW, eventId, "{\"eventId\":\"" + eventId + "\",\"customerId\":1}", past,
-                attempts, past);
-        return eventId;
-    }
+	private UUID insertDueRow(int attempts) {
+		UUID eventId = UUID.randomUUID();
+		Timestamp past = Timestamp.from(Instant.now().minusSeconds(10));
+		jdbcTemplate.update(INSERT_OUTBOX_ROW, eventId, "{\"eventId\":\"" + eventId + "\",\"customerId\":1}", past,
+				attempts, past);
+		return eventId;
+	}
 
-    private Map<String, Object> row(UUID eventId) {
-        return jdbcTemplate.queryForMap("SELECT attempts, last_error_type, last_failed_at, sent_at FROM outbox_events"
-                + " WHERE event_id = ?", eventId);
-    }
+	private Map<String, Object> row(UUID eventId) {
+		return jdbcTemplate.queryForMap("SELECT attempts, last_error_type, last_failed_at, sent_at FROM outbox_events"
+				+ " WHERE event_id = ?", eventId);
+	}
 }
