@@ -6,18 +6,21 @@ import com.datum.clientmanagement.util.CustomerFormats;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
-import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
-import io.github.resilience4j.retry.RetryConfig;
 import io.github.resilience4j.retry.RetryRegistry;
+import io.github.resilience4j.springboot.circuitbreaker.autoconfigure.CircuitBreakerAutoConfiguration;
+import io.github.resilience4j.springboot.retry.autoconfigure.RetryAutoConfiguration;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.ResourceAccessException;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
@@ -35,9 +38,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 /**
- * The HTTP adapter against an in-JVM WireMock (the network boundary). Resilience settings mirror the "score"
- * instances of application.yaml, with shorter waits and window so the tests stay fast.
+ * The HTTP adapter against an in-JVM WireMock (the network boundary). The retry and circuit breaker are the real
+ * "score" instances of application.yaml (only Resilience4j's auto-configuration and the config files are loaded);
+ * just the retry wait is shortened so the tests stay fast. Timeouts are shortened through ScoreProperties.
  */
+@SpringJUnitConfig(initializers = ConfigDataApplicationContextInitializer.class)
+@ImportAutoConfiguration({RetryAutoConfiguration.class, CircuitBreakerAutoConfiguration.class})
+@TestPropertySource(properties = "resilience4j.retry.instances.score.wait-duration=10ms")
 class ScoreClientTest {
 
 	private static final String CPF = "52998224725";
@@ -46,9 +53,14 @@ class ScoreClientTest {
 	private static final Duration CONNECT_TIMEOUT = Duration.ofMillis(500);
 	private static final Duration READ_TIMEOUT = Duration.ofMillis(300);
 	private static final int SLOWER_THAN_READ_TIMEOUT_MS = 1000;
-	private static final int WINDOW_SIZE = 4;
 
 	private static final WireMockServer SCORE = new WireMockServer(options().dynamicPort());
+
+	@Autowired
+	private RetryRegistry retryRegistry;
+
+	@Autowired
+	private CircuitBreakerRegistry circuitBreakerRegistry;
 
 	private CircuitBreaker circuitBreaker;
 	private ScoreClient client;
@@ -66,6 +78,8 @@ class ScoreClientTest {
 	@BeforeEach
 	void setUp() {
 		SCORE.resetAll();
+		circuitBreaker = circuitBreakerRegistry.circuitBreaker(ScoreClient.RESILIENCE_INSTANCE);
+		circuitBreaker.reset();
 		client = clientFor(URI.create(SCORE.baseUrl()));
 	}
 
@@ -168,7 +182,7 @@ class ScoreClientTest {
 	@Test
 	void fetch_circuitOpen_throwsUnavailableWithoutCallingScore() {
 		SCORE.stubFor(get(SCORE_URL).willReturn(aResponse().withStatus(500)));
-		for (int call = 0; call < WINDOW_SIZE; call++)
+		for (int call = 0; call < windowSize(); call++)
 			failure(() -> client.fetch(CPF), HttpStatus.SERVICE_UNAVAILABLE);
 		assertThat(circuitBreaker.getState()).isEqualTo(CircuitBreaker.State.OPEN);
 		int requestsBefore = SCORE.getAllServeEvents().size();
@@ -182,26 +196,18 @@ class ScoreClientTest {
 	void fetch_repeatedNotFound_keepsTheCircuitClosed() {
 		SCORE.stubFor(get(SCORE_URL).willReturn(aResponse().withStatus(404)));
 
-		for (int call = 0; call < WINDOW_SIZE * 2; call++)
+		for (int call = 0; call < windowSize() * 2; call++)
 			failure(() -> client.fetch(CPF), HttpStatus.NOT_FOUND);
 
 		assertThat(circuitBreaker.getState()).isEqualTo(CircuitBreaker.State.CLOSED);
+		SCORE.verify(windowSize() * 2, getRequestedFor(urlEqualTo(SCORE_URL)));
+	}
+
+	private int windowSize() {
+		return circuitBreaker.getCircuitBreakerConfig().getSlidingWindowSize();
 	}
 
 	private ScoreClient clientFor(URI baseUrl) {
-		RetryRegistry retryRegistry = RetryRegistry.of(RetryConfig.custom()
-				.maxAttempts(2)
-				.waitDuration(Duration.ofMillis(10))
-				.retryExceptions(HttpServerErrorException.class, ResourceAccessException.class)
-				.build());
-		CircuitBreakerRegistry circuitBreakerRegistry = CircuitBreakerRegistry.of(CircuitBreakerConfig.custom()
-				.slidingWindowSize(WINDOW_SIZE)
-				.minimumNumberOfCalls(WINDOW_SIZE)
-				.failureRateThreshold(50)
-				.waitDurationInOpenState(Duration.ofMinutes(1))
-				.recordExceptions(HttpServerErrorException.class, ResourceAccessException.class)
-				.build());
-		circuitBreaker = circuitBreakerRegistry.circuitBreaker(ScoreClient.RESILIENCE_INSTANCE);
 		return new ScoreClient(new ScoreProperties(baseUrl, CONNECT_TIMEOUT, READ_TIMEOUT), retryRegistry,
 				circuitBreakerRegistry, new CustomerFormats());
 	}

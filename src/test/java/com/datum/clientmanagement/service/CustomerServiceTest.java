@@ -38,7 +38,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -185,7 +184,7 @@ class CustomerServiceTest {
 
 		assertResponseStatus(() -> service.update(CUSTOMER_ID, updateRequest(null)), HttpStatus.CONFLICT,
 				CustomerService.VERSION_CONFLICT_MESSAGE.formatted(CUSTOMER_ID));
-		assertThat(stored.getName()).isEqualTo("Ana Souza");
+		assertUnchanged(stored);
 		verify(repository, never()).flush();
 	}
 
@@ -195,7 +194,7 @@ class CustomerServiceTest {
 
 		assertResponseStatus(() -> service.update(CUSTOMER_ID, updateRequest("11144477735")),
 				HttpStatus.UNPROCESSABLE_CONTENT, CustomerService.CPF_CHANGE_MESSAGE);
-		assertThat(stored.getName()).isEqualTo("Ana Souza");
+		assertUnchanged(stored);
 		verify(repository, never()).flush();
 	}
 
@@ -219,13 +218,21 @@ class CustomerServiceTest {
 
 	@Test
 	void find_queriesRepositoryWithFilterAndPageRequest() {
+		CustomerSpecifications specifications = mock(CustomerSpecifications.class);
+		CustomerService serviceWithMockedSpecifications = new CustomerService(repository,
+				Clock.fixed(NOW, ZoneOffset.UTC), scoreClient, events, specifications, new CustomerFormats());
+		CustomerFilter filter = new CustomerFilter(CustomerStatus.ACTIVE, "joao");
+		Specification<Customer> filterSpecification = (root, query, builder) -> null;
+		when(specifications.matching(filter)).thenReturn(filterSpecification);
 		Pageable pageable = PageRequest.of(1, 20, Sort.by("id"));
 		Page<Customer> page = new PageImpl<>(List.of(), pageable, 0);
-		when(repository.findAll(ArgumentMatchers.<Specification<Customer>>any(), eq(pageable))).thenReturn(page);
+		when(repository.findAll(filterSpecification, pageable)).thenReturn(page);
 
-		Page<Customer> found = service.find(new CustomerFilter(CustomerStatus.ACTIVE, "joao"), pageable);
+		Page<Customer> found = serviceWithMockedSpecifications.find(filter, pageable);
 
 		assertThat(found).isSameAs(page);
+		verify(specifications).matching(filter);
+		verify(repository).findAll(filterSpecification, pageable);
 	}
 
 	@Test
@@ -268,6 +275,15 @@ class CustomerServiceTest {
 			assertThat(exception.getStatusCode()).isEqualTo(status);
 			assertThat(exception.getReason()).isEqualTo(reason);
 		});
+	}
+
+	private static void assertUnchanged(Customer stored) {
+		assertThat(stored.getName()).isEqualTo("Ana Souza");
+		assertThat(stored.getNameNormalized()).isEqualTo("ana souza");
+		assertThat(stored.getEmail()).isEqualTo("ana@example.com");
+		assertThat(stored.getStatus()).isEqualTo(CustomerStatus.ACTIVE);
+		assertThat(stored.getCpf()).isEqualTo(CPF);
+		assertThat(stored.getUpdatedAt()).isEqualTo(CREATED_AT);
 	}
 
 	private Customer storedCustomer(long version) {

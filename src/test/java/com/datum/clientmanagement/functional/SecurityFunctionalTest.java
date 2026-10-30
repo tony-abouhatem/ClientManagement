@@ -138,6 +138,19 @@ class SecurityFunctionalTest {
 		}
 	}
 
+	// AC-2 (ticket 02) / NFR-1 (positive control for the 401 cases below)
+	// Given a JWT signed with the trusted key, issuer <issuer>, role ADMIN, exp = now + 300 s
+	// When GET /customers is called with "Authorization: Bearer <that token>"
+	// Then the response is 200, so the real decoder accepts a valid token and the 401s come from the broken claim
+	@Test
+	@DisplayName("should return 200 when the JWT is validly signed by the trusted key")
+	void validSignedAdminToken_returns200() throws Exception {
+		String token = signedToken(TRUSTED_KEY, claims -> { });
+
+		mockMvc.perform(get("/customers").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+				.andExpect(status().isOk());
+	}
+
 	// AC-2 (ticket 02) / NFR-1
 	// Given a JWT signed with the trusted key, issuer <issuer>, role ADMIN, but "exp" = now - 60 s
 	// When GET /customers is called with "Authorization: Bearer <that token>"

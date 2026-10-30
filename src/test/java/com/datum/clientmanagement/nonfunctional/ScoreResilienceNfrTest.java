@@ -165,6 +165,7 @@ class ScoreResilienceNfrTest {
 		long elapsedMs = timedMillis(() -> expectProblem(requestScore(), 503));
 
 		assertThat(elapsedMs).isLessThanOrEqualTo(MAX_SCORE_RESPONSE_MS);
+		assertWaitedForConnectTimeout(elapsedMs);
 	}
 
 	// NFR-4:resilience (retry only on 5xx/timeouts)
@@ -224,7 +225,7 @@ class ScoreResilienceNfrTest {
 		expectProblem(requestScore(), 503);
 
 		routeScoreCallsTo(NON_ROUTABLE_SCORE_URL);
-		expectProblem(requestScore(), 503);
+		assertWaitedForConnectTimeout(timedMillis(() -> expectProblem(requestScore(), 503)));
 		reset(scoreClient);
 
 		stubScore(aResponse().withStatus(500));
@@ -312,6 +313,13 @@ class ScoreResilienceNfrTest {
 		long start = System.nanoTime();
 		request.run();
 		return (System.nanoTime() - start) / 1_000_000;
+	}
+
+	// An immediate "no route to host" would also give 503; only a wait of at least the connect timeout proves the
+	// TCP connect really hung and timed out.
+	private void assertWaitedForConnectTimeout(long elapsedMs) {
+		assertThat(elapsedMs).as("elapsed ms vs connect timeout")
+				.isGreaterThanOrEqualTo(scoreProperties.connectTimeout().toMillis());
 	}
 
 	private void callScore(int times) throws Exception {

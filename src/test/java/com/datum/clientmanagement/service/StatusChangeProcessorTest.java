@@ -6,6 +6,7 @@ import com.datum.clientmanagement.model.enums.CustomerStatus;
 import com.datum.clientmanagement.model.enums.EventType;
 import com.datum.clientmanagement.repository.ProcessedEventStore;
 import org.junit.jupiter.api.Test;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -58,8 +59,10 @@ class StatusChangeProcessorTest {
 		doThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "No customer exists with id 123."))
 				.when(customerService).changeStatus(anyLong(), any());
 
+		// ListenerRetryConfiguration excludes AmqpRejectAndDontRequeueException from the listener retry.
 		assertThatThrownBy(() -> processor.process(REQUEST))
 				.isInstanceOf(InvalidStatusChangeException.class)
+				.isInstanceOf(AmqpRejectAndDontRequeueException.class)
 				.hasMessage("Event " + EVENT_ID + ": No customer exists with id 123.");
 	}
 

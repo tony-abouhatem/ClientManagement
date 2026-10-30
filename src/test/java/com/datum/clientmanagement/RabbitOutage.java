@@ -38,6 +38,18 @@ public class RabbitOutage {
 		docker.startContainerCmd(container.getContainerId()).exec();
 	}
 
+	/**
+	 * Freezes the broker: the app's TCP connection stays open and writes still succeed, but RabbitMQ answers nothing
+	 * (no confirms) until {@link #unpause()}.
+	 */
+	public void pause() {
+		docker.pauseContainerCmd(container.getContainerId()).exec();
+	}
+
+	public void unpause() {
+		docker.unpauseContainerCmd(container.getContainerId()).exec();
+	}
+
 	public boolean isRunning() {
 		return Boolean.TRUE.equals(docker.inspectContainerCmd(container.getContainerId()).exec().getState().getRunning());
 	}

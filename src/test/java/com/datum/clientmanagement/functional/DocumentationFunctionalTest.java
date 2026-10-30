@@ -580,7 +580,8 @@ class DocumentationFunctionalTest {
 		//      get    /customers/{id}        -> 401, 404
 		//      get    /customers/{id}/score  -> 401, 404, 502, 503, 504
 		//      put    /customers/{id}        -> 400, 401, 403, 404, 409, 422
-		//      delete /customers/{id}        -> 401, 403, 404
+		//      delete /customers/{id}        -> 401, 403
+		//  And delete /customers/{id} declares no 404 (DELETE is idempotent: an unknown id returns 204)
 		//  And every declared 4xx/5xx response has "application/problem+json" content
 		//  And the assertion message lists each "operation: missing code"
 		@Test
@@ -600,6 +601,8 @@ class DocumentationFunctionalTest {
 			});
 
 			assertThat(problems).as("error response problems: %s", problems).isEmpty();
+			assertThat(operations.get("delete /customers/{id}").path("responses").has("404"))
+					.as("delete /customers/{id} declares 404").isFalse();
 		}
 
 		private JsonNode apiDocs() throws Exception {

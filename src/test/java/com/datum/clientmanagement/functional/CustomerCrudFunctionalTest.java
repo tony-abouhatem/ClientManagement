@@ -15,10 +15,12 @@
 package com.datum.clientmanagement.functional;
 
 import com.datum.clientmanagement.TestcontainersConfiguration;
+import com.datum.clientmanagement.repository.CustomerRepository;
 import com.datum.clientmanagement.service.CustomerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.stubbing.Answer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -52,7 +54,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mockingDetails;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -76,6 +80,7 @@ class CustomerCrudFunctionalTest {
 			"{\"name\":\"Ana Souza\",\"cpf\":\"52998224725\",\"email\":\"ana@example.com\"}";
 	private static final long UNKNOWN_ID = 999999L;
 	private static final long CONCURRENT_TIMEOUT_SECONDS = 30;
+	private static final int RACERS = 2;
 	private static final List<String> STACK_TRACE_MARKERS = List.of("Exception", "at com.", "at org.", "trace");
 
 	private static final JsonMapper JSON = JsonMapper.builder().build();
@@ -88,6 +93,10 @@ class CustomerCrudFunctionalTest {
 
 	@MockitoSpyBean
 	private CustomerService customerService;
+
+	// Only used to hold racing requests until both have read the database; otherwise the real repository.
+	@MockitoSpyBean
+	private CustomerRepository customerRepository;
 
 	@BeforeEach
 	void deleteAllCustomers() {
@@ -310,6 +319,9 @@ class CustomerCrudFunctionalTest {
 	@Test
 	@DisplayName("should return 409 for the loser when two concurrent POSTs use the same CPF")
 	void concurrentDuplicateCpf_returns409ForLoser() throws Exception {
+		// Both requests pass the "CPF already exists?" check before either inserts, so the race is real.
+		doAnswer(waitForBothRacers()).when(customerRepository).existsByCpf("93541134780");
+
 		List<Integer> statuses = runConcurrently(
 				() -> statusOf(jsonRequest(post(CUSTOMERS),
 						"{\"name\":\"Racer One\",\"cpf\":\"93541134780\",\"email\":\"one@example.com\"}")),
@@ -576,6 +588,8 @@ class CustomerCrudFunctionalTest {
 								.with(admin()))
 						.andReturn().getResponse())
 				.toList();
+		// Both requests load the customer at version 0 before either flushes, so both pass the version check.
+		doAnswer(waitForBothRacers()).when(customerRepository).findById(id);
 
 		List<MockHttpServletResponse> responses = runConcurrently(updates);
 
@@ -699,6 +713,24 @@ class CustomerCrudFunctionalTest {
 				return error.path("message").asString();
 		}
 		return "";
+	}
+
+	/**
+	 * Runs the real call, then holds the thread until the other racer has made the same call. Later calls (after
+	 * both arrived) pass straight through.
+	 */
+	private static Answer<Object> waitForBothRacers() {
+		CountDownLatch bothArrived = new CountDownLatch(RACERS);
+		return invocation -> {
+			// The repository is a JDK proxy, so callRealMethod() cannot reach it; Spring's spy delegates to it through
+			// its default answer instead.
+			Object result = mockingDetails(invocation.getMock()).getMockCreationSettings().getDefaultAnswer()
+					.answer(invocation);
+			bothArrived.countDown();
+			if (!bothArrived.await(CONCURRENT_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+				throw new IllegalStateException("The other racer never reached " + invocation.getMethod().getName());
+			return result;
+		};
 	}
 
 	@SafeVarargs

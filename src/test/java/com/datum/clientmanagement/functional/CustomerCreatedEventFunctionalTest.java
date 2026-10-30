@@ -19,6 +19,8 @@ import com.datum.clientmanagement.RestartableRabbitConfiguration;
 import com.datum.clientmanagement.event.CustomerCreatedEvent;
 import com.datum.clientmanagement.config.MessagingTopology;
 import com.datum.clientmanagement.messaging.OutboxRelay;
+import com.datum.clientmanagement.model.entity.OutboxEventEntity;
+import com.datum.clientmanagement.repository.OutboxEventRepository;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +40,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -60,6 +63,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -67,6 +71,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mockingDetails;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -91,6 +99,7 @@ class CustomerCreatedEventFunctionalTest {
 	private static final Duration RECOVERY_DEADLINE = Duration.ofSeconds(30);
 	private static final Duration RELAY_RETRY_POLL = Duration.ofMillis(500);
 	private static final int CONCURRENT_ROWS = 10;
+	private static final int RELAY_RUNS = 2;
 	private static final String INSERT_CUSTOMER = "INSERT INTO customers"
 			+ " (name, name_normalized, cpf, email, status, created_at, updated_at)"
 			+ " VALUES (?, ?, ?, 'test@example.com', 'ACTIVE', now(), now()) RETURNING id";
@@ -126,6 +135,10 @@ class CustomerCreatedEventFunctionalTest {
 
 	@Autowired
 	private CommitFailureInjection commitFailure;
+
+	// Only used to hold overlapping relay runs at the same moment; otherwise the real repository.
+	@MockitoSpyBean
+	private OutboxEventRepository outboxRepository;
 
 	@BeforeEach
 	void cleanState() {
@@ -269,10 +282,12 @@ class CustomerCreatedEventFunctionalTest {
 	// When an ADMIN creates customer cpf 98765432100
 	// Then the response is 201
 	//  And outbox_events has exactly 1 row for that customer with sent_at NULL
-	// The confirm timeout itself is covered by ConfirmedPublisherTest; here the broker really returns and nacks.
+	// The broker really returns, nacks and stays silent (container paused, so the confirm wait times out).
 	@Test
 	@DisplayName("should store a pending outbox row when the publish is nacked, times out or is returned")
 	void nackOrTimeoutOrReturn_writesOutbox() throws Exception {
+		assertConfirmTimeoutWritesOutbox();
+
 		// Broker-side failure -> the last_error_type it must be stored with (updated AC-6).
 		Map<Runnable, String> brokerFailures = new LinkedHashMap<>();
 		brokerFailures.put(() -> amqpAdmin.removeBinding(customerCreatedBinding), "UNROUTABLE");
@@ -284,18 +299,40 @@ class CustomerCreatedEventFunctionalTest {
 
 			long customerId = createCustomer("Diego Alves", "98765432100", "diego@example.com");
 
-			assertThat(jdbcTemplate.queryForList("SELECT sent_at, attempts, last_error_type, last_failed_at"
-					+ " FROM outbox_events WHERE aggregate_id = ?", customerId))
-					.singleElement()
-					.satisfies(row -> {
-						assertThat(row.get("sent_at")).isNull();
-						assertThat(row.get("attempts")).isEqualTo(0);
-						assertThat(row.get("last_error_type")).isEqualTo(brokerFailure.getValue());
-						assertThat(row.get("last_failed_at")).isNotNull();
-					});
-			assertThat(outboxRowCount()).isEqualTo(1);
+			assertPendingOutboxRow(customerId, brokerFailure.getValue());
 			amqpAdmin.initialize();
 		}
+	}
+
+	private void assertConfirmTimeoutWritesOutbox() throws Exception {
+		// A successful publish first leaves an open publisher channel in the cache: opening a new channel while the
+		// broker is paused would block on the channel RPC instead of reaching the confirm wait.
+		createCustomer("Warm Up", "52998224725", "warmup@example.com");
+		assertThat(rabbitTemplate.receive(QUEUE, PUBLISH_WINDOW_MS)).as("warm-up message").isNotNull();
+		cleanState();
+
+		long customerId;
+		rabbitOutage.pause();
+		try {
+			customerId = createCustomer("Diego Alves", "98765432100", "diego@example.com");
+		} finally {
+			rabbitOutage.unpause();
+		}
+
+		assertPendingOutboxRow(customerId, "CONFIRM_TIMEOUT");
+	}
+
+	private void assertPendingOutboxRow(long customerId, String expectedErrorType) {
+		assertThat(jdbcTemplate.queryForList("SELECT sent_at, attempts, last_error_type, last_failed_at"
+				+ " FROM outbox_events WHERE aggregate_id = ?", customerId))
+				.singleElement()
+				.satisfies(row -> {
+					assertThat(row.get("sent_at")).isNull();
+					assertThat(row.get("attempts")).isEqualTo(0);
+					assertThat(row.get("last_error_type")).isEqualTo(expectedErrorType);
+					assertThat(row.get("last_failed_at")).isNotNull();
+				});
+		assertThat(outboxRowCount()).isEqualTo(1);
 	}
 
 	// AC-5 (ticket 06) / NFR-7
@@ -398,8 +435,28 @@ class CustomerCreatedEventFunctionalTest {
 		Instant createdAt = Instant.now().minusSeconds(60);
 		for (int row = 0; row < CONCURRENT_ROWS; row++)
 			eventIds.add(insertPendingRow(row + 1, createdAt.plusMillis(row)).toString());
+		// Each run's first lockDue is held until the other run has locked a row too, so the runs really overlap.
+		List<UUID> lockedAtOverlap = new CopyOnWriteArrayList<>();
+		CountDownLatch bothHoldARow = new CountDownLatch(RELAY_RUNS);
+		doAnswer(invocation -> {
+			// The repository is a JDK proxy, so callRealMethod() cannot reach it; Spring's spy delegates to it through
+			// its default answer instead.
+			@SuppressWarnings("unchecked")
+			List<OutboxEventEntity> locked = (List<OutboxEventEntity>) mockingDetails(invocation.getMock())
+					.getMockCreationSettings().getDefaultAnswer().answer(invocation);
+			if (bothHoldARow.getCount() > 0) {
+				locked.forEach(event -> lockedAtOverlap.add(event.getEventId()));
+				bothHoldARow.countDown();
+				if (!bothHoldARow.await(RECOVERY_DEADLINE.toSeconds(), TimeUnit.SECONDS))
+					throw new IllegalStateException("The other relay run never locked a row");
+			}
+			return locked;
+		}).when(outboxRepository).lockDue(any(), anyInt(), any());
 
 		runConcurrently(outboxRelay::relayPending, outboxRelay::relayPending);
+
+		assertThat(lockedAtOverlap).as("rows held by the two runs at the same time")
+				.hasSize(RELAY_RUNS).doesNotHaveDuplicates();
 
 		List<String> receivedEventIds = receiveAll().stream()
 				.map(message -> bodyOf(message).path("eventId").asString())
