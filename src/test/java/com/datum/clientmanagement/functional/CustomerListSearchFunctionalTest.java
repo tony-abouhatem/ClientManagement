@@ -11,7 +11,7 @@
 package com.datum.clientmanagement.functional;
 
 import com.datum.clientmanagement.TestcontainersConfiguration;
-import com.datum.clientmanagement.customer.CustomerFormats;
+import com.datum.clientmanagement.util.CustomerFormats;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -15,7 +15,7 @@
 package com.datum.clientmanagement.functional;
 
 import com.datum.clientmanagement.TestcontainersConfiguration;
-import com.datum.clientmanagement.customer.CustomerService;
+import com.datum.clientmanagement.service.CustomerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

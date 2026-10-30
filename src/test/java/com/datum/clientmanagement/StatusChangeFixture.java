@@ -1,6 +1,6 @@
 package com.datum.clientmanagement;
 
-import com.datum.clientmanagement.messaging.MessagingTopology;
+import com.datum.clientmanagement.config.MessagingTopology;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;

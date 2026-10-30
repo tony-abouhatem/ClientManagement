@@ -1,6 +1,10 @@
 package com.datum.clientmanagement.messaging;
 
-import com.datum.clientmanagement.customer.CustomerCreatedEvent;
+import com.datum.clientmanagement.event.CustomerCreatedEvent;
+import com.datum.clientmanagement.exception.PublishFailedException;
+import com.datum.clientmanagement.model.entity.OutboxEventEntity;
+import com.datum.clientmanagement.model.enums.EventType;
+import com.datum.clientmanagement.repository.OutboxEventRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;

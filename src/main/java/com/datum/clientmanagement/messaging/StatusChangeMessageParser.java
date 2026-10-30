@@ -1,6 +1,9 @@
 package com.datum.clientmanagement.messaging;
 
-import com.datum.clientmanagement.customer.CustomerStatus;
+import com.datum.clientmanagement.dto.StatusChangeRequest;
+import com.datum.clientmanagement.exception.InvalidStatusChangeException;
+import com.datum.clientmanagement.model.enums.CustomerStatus;
+import com.datum.clientmanagement.model.enums.EventType;
 import org.springframework.amqp.core.Message;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;

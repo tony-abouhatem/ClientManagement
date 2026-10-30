@@ -8,8 +8,8 @@ package com.datum.clientmanagement.nonfunctional;
 
 import com.datum.clientmanagement.ScoreWireMockConfiguration;
 import com.datum.clientmanagement.TestcontainersConfiguration;
-import com.datum.clientmanagement.customer.CustomerFormats;
-import com.datum.clientmanagement.customer.ScoreClient;
+import com.datum.clientmanagement.util.CustomerFormats;
+import com.datum.clientmanagement.service.ScoreClient;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.client.WireMock;

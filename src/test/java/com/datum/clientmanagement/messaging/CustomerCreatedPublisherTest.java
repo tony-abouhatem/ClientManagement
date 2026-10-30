@@ -1,6 +1,10 @@
 package com.datum.clientmanagement.messaging;
 
-import com.datum.clientmanagement.customer.CustomerCreatedEvent;
+import com.datum.clientmanagement.event.CustomerCreatedEvent;
+import com.datum.clientmanagement.exception.PublishFailedException;
+import com.datum.clientmanagement.model.entity.OutboxEventEntity;
+import com.datum.clientmanagement.model.enums.PublishFailureReason;
+import com.datum.clientmanagement.repository.OutboxEventRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataAccessResourceFailureException;

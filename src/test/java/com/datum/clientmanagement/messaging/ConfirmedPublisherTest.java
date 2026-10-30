@@ -1,6 +1,9 @@
 package com.datum.clientmanagement.messaging;
 
 import com.datum.clientmanagement.config.MessagingProperties;
+import com.datum.clientmanagement.config.MessagingTopology;
+import com.datum.clientmanagement.exception.PublishFailedException;
+import com.datum.clientmanagement.model.enums.PublishFailureReason;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.amqp.AmqpConnectException;

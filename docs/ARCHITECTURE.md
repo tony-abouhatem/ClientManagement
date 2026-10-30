@@ -28,11 +28,18 @@ flowchart LR
 ```
 
 ## Package layout (`com.datum.clientmanagement`)
-- `customer`: entity, repository, service, controller, DTOs, CPF validator/normalizer, and the Score integration: `ScoreClient` (RestClient + Resilience4j) and the `GET /customers/{id}/score` endpoint.
-- `messaging`: AMQP topology config, `CustomerCreated` publisher, outbox entity and relay, status-change listener, `processed_events`.
+Packages are split by technical role, not by feature.
+- `controller`: `CustomerController` (REST endpoints, including `GET /customers/{id}/score`).
+- `service`: `CustomerService`, `StatusChangeProcessor` (applies a status-change message), and `ScoreClient`, the external Score integration (RestClient + Resilience4j).
+- `repository`: `CustomerRepository` and `CustomerSpecifications` (list filters), `OutboxEventRepository`, `ProcessedEventStore` (`processed_events`).
+- `model.entity`: JPA entities `Customer` and `OutboxEventEntity`. `model.enums`: `CustomerStatus`, `EventType`, `PublishFailureReason`.
+- `dto`: request/response records (`CustomerRequests`, `CustomerResponse`, `CustomerFilter`, `ScoreResponse`), the external Score body `ExternalScore`, and the incoming `StatusChangeRequest`.
+- `event`: `CustomerCreatedEvent` (Spring application event raised on create).
+- `messaging`: AMQP in/out: `CustomerCreated` publisher with publisher confirms, outbox relay, status-change listener and message parser.
+- `validation`: the `@Cpf` constraint. `util`: `CustomerFormats` (CPF normalize/mask, searchable name), `CustomerSort`, `CustomerLimits`.
+- `exception`: `@RestControllerAdvice` (validation `errors[]`, generic 500) and the app's own exceptions. Business errors are thrown as `ResponseStatusException`.
+- `config`: typed `@ConfigurationProperties` (Score, messaging, outbox, pagination) and the AMQP topology, listener retry and outbox scheduling configuration.
 - `security`: `SecurityFilterChain` and the Keycloak role → `ROLE_*` converter.
-- `common.error`: `@RestControllerAdvice` (validation `errors[]`, generic 500). Business errors are thrown as `ResponseStatusException`.
-- `config`: typed `@ConfigurationProperties` (Score, messaging, outbox, pagination).
 
 ## Data model
 Source of truth: `src/main/resources/db/migration` (Flyway). Hibernate runs with `ddl-auto=validate`.

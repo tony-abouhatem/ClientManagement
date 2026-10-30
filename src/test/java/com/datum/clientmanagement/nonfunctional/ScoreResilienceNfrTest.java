@@ -1,7 +1,7 @@
 /*
  * NFR-4, NFR-5, NFR-6 (docs/PRODUCT.md); ticket 05 (GitHub issue #6).
  *
- * Interfaces under test (do not exist yet): GET /customers/{id}/score, com.datum.clientmanagement.customer.ScoreClient
+ * Interfaces under test (do not exist yet): GET /customers/{id}/score, com.datum.clientmanagement.service.ScoreClient
  * (RestClient + Resilience4j retry "score" and circuit breaker "score"), typed Score @ConfigurationProperties.
  * External Score = in-JVM WireMock. Customer C has cpf "52998224725". Circuit breaker reset between tests.
  */
@@ -10,8 +10,8 @@ package com.datum.clientmanagement.nonfunctional;
 import com.datum.clientmanagement.ScoreWireMockConfiguration;
 import com.datum.clientmanagement.TestcontainersConfiguration;
 import com.datum.clientmanagement.config.ScoreProperties;
-import com.datum.clientmanagement.customer.CustomerFormats;
-import com.datum.clientmanagement.customer.ScoreClient;
+import com.datum.clientmanagement.util.CustomerFormats;
+import com.datum.clientmanagement.service.ScoreClient;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.client.WireMock;

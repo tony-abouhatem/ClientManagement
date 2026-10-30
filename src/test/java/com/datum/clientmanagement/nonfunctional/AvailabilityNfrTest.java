@@ -8,7 +8,7 @@ package com.datum.clientmanagement.nonfunctional;
 
 import com.datum.clientmanagement.TestPorts;
 import com.datum.clientmanagement.TestcontainersConfiguration;
-import com.datum.clientmanagement.customer.ScoreClient;
+import com.datum.clientmanagement.service.ScoreClient;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.junit.jupiter.api.BeforeEach;

@@ -7,7 +7,7 @@
 package com.datum.clientmanagement.nonfunctional;
 
 import com.datum.clientmanagement.TestcontainersConfiguration;
-import com.datum.clientmanagement.customer.CustomerService;
+import com.datum.clientmanagement.service.CustomerService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

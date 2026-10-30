@@ -1,6 +1,9 @@
 package com.datum.clientmanagement.messaging;
 
 import com.datum.clientmanagement.TestcontainersConfiguration;
+import com.datum.clientmanagement.config.MessagingTopology;
+import com.datum.clientmanagement.exception.PublishFailedException;
+import com.datum.clientmanagement.model.enums.PublishFailureReason;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

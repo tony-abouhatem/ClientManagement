@@ -1,6 +1,8 @@
 package com.datum.clientmanagement.messaging;
 
 import com.datum.clientmanagement.config.MessagingProperties;
+import com.datum.clientmanagement.config.MessagingTopology;
+import com.datum.clientmanagement.exception.PublishFailedException;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageBuilder;
@@ -18,10 +20,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static com.datum.clientmanagement.messaging.PublishFailureReason.BROKER_DOWN;
-import static com.datum.clientmanagement.messaging.PublishFailureReason.CONFIRM_TIMEOUT;
-import static com.datum.clientmanagement.messaging.PublishFailureReason.NACK;
-import static com.datum.clientmanagement.messaging.PublishFailureReason.UNROUTABLE;
+import static com.datum.clientmanagement.model.enums.PublishFailureReason.BROKER_DOWN;
+import static com.datum.clientmanagement.model.enums.PublishFailureReason.CONFIRM_TIMEOUT;
+import static com.datum.clientmanagement.model.enums.PublishFailureReason.NACK;
+import static com.datum.clientmanagement.model.enums.PublishFailureReason.UNROUTABLE;
 
 /**
  * Publishes a CUSTOMER_CREATED JSON payload to {@code customer.events} and blocks until RabbitMQ confirms it

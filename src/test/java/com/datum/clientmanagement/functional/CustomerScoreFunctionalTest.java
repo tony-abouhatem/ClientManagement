@@ -3,7 +3,7 @@
  *
  * Interfaces under test (do not exist yet):
  *   - GET /customers/{id}/score -> 200 ScoreResponse {customerId, cpf, score, classification}
- *   - com.datum.clientmanagement.customer.ScoreClient calling external GET {SCORE_BASE_URL}/scores/{cpf}
+ *   - com.datum.clientmanagement.service.ScoreClient calling external GET {SCORE_BASE_URL}/scores/{cpf}
  *   - Errors as ProblemDetail (application/problem+json)
  *
  * External Score is an in-JVM WireMock server (never the real network); SCORE_BASE_URL points at it.
@@ -16,9 +16,9 @@ package com.datum.clientmanagement.functional;
 import com.datum.clientmanagement.ScoreWireMockConfiguration;
 import com.datum.clientmanagement.TestcontainersConfiguration;
 import com.datum.clientmanagement.config.ScoreProperties;
-import com.datum.clientmanagement.customer.Cpf;
-import com.datum.clientmanagement.customer.CustomerFormats;
-import com.datum.clientmanagement.customer.ScoreClient;
+import com.datum.clientmanagement.validation.Cpf;
+import com.datum.clientmanagement.util.CustomerFormats;
+import com.datum.clientmanagement.service.ScoreClient;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.client.WireMock;
